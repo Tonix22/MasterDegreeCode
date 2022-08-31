@@ -1,0 +1,34 @@
+
+\documentclass{article}
+\usepackage{tabularx}
+\begin{document}
+\begin{tabularx}{.8\textwidth} { 
+  | >{\raggedright\arraybackslash}X 
+  | >{\raggedright\arraybackslash}X| }
+ \hline
+ SampleRate          & 1/Ts \\
+ \hline
+ NormalizePathGains  & True \\
+ \hline
+ PathDelays          & (0:10)*0.9*Ts \\
+ \hline
+ AveragePathGains    & 10*log10(exp(-2*(0:10 )))\\
+ \hline
+ MaximumDopplerShift & Fdoppler \\
+ \hline
+ RandomStream        & mt19937ar with seed \\
+ \hline
+ Seed                & randseed \\
+ \hline
+ PathGainsOutputPort & True \\
+ \hline
+ FadingTechnique     & Filtered Gaussian noise \\
+ \hline
+ InitialTimeSource   & Property \\
+ \hline
+ Visualization       & Off \\
+ \hline
+
+\end{tabularx}
+\end{document}
+

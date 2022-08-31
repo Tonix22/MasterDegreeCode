@@ -1,0 +1,23 @@
+-= Parametros Frecuenciales -=
+
+Frecuencia de muestreo   7.68e6
+Delay-Frecuency elements 512
+Doppler-Time elements    128
+Tamaño de la trama       512 X 128
+
+
+-= Parametros IQ -=
+Tamaño Constelación      4
+
+-= Cosas matlab -=
+- numel
+
+Dudas:
+[] ¿Que es un EVA2? -> Delay profile
+[] ¿Que es un piloto?
+[] GMEDS
+[] ¿ChanSizeDelay: como funciona la formula 2x+1? -> pilotmargingdelay
+[] ¿Por que frames = 1000 y Fdoppler= 444.44?
+[] ¿Cyclic prefix?
+
+
