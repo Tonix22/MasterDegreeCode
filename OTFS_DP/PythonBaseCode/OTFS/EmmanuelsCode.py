@@ -5,8 +5,9 @@ import seaborn as sns; sns.set_theme()
 import matplotlib.pyplot as plt
  
 # adding Folder_2 to the system path
-sys.path.insert(0, '/home/tonix/HardDisk/Documents/Maestria/Tesis/Codigo_OTFS/PythonLab/QAM')
-sys.path.insert(0,'/home/tonix/HardDisk/Documents/Maestria/Tesis/Codigo_OTFS/PythonLab/Channels')
+sys.path.insert(0, '../Channels')
+sys.path.insert(0,'../QAM')
+
 from QPSK import QPSK
 from RayleightFadeYungs import rayleightFading
 
