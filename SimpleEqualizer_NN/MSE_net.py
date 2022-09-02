@@ -8,10 +8,8 @@ import pandas as pd
 from torch.autograd import Variable
 #from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
+from config import *
 
-PLOT_REALIZATIONS = True
-PLOT_LOSS         = False
-TOGGLE            = False
 
 # Multiclass problem
 class NeuralNet(nn.Module):
@@ -33,7 +31,7 @@ class NeuralNet(nn.Module):
 N = 16
 
 #READ PANDNDAS DATA SET
-df = pd.read_csv('/home/tonix/HardDisk/Documents/Maestria/Tesis/Codigo_DP/Realizations.csv', index_col=0)
+df = pd.read_csv('Realizations.csv', index_col=0)
 ##GET X_IN AND R_OUT
 
 columns =[]
@@ -110,8 +108,8 @@ if PLOT_LOSS == True:
     plt.xlabel('epochs') #set the label for x-axis
     plt.show()
 
-#torch.save(model.state_dict(),"MSE_net.pth")
-torch.onnx.export(model,X_in[0].float(),"MSE_net.onnx", export_params=True,opset_version=10)
+if(EXPORT_ONNX):
+    torch.onnx.export(model,X_in[0].float(),"MSE_net.onnx", export_params=True,opset_version=10)
 
 
 if PLOT_REALIZATIONS == True:

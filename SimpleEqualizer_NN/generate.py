@@ -4,49 +4,15 @@ import numpy as np
 import pandas as pd
 from math import sqrt
 from math import pi
+from Toeplitz import Math_toolbox
 import matplotlib.pyplot as plt
+from config import *
+
 from numpy.core.defchararray import greater
 from numpy.core.fromnumeric import ptp
 from numpy.lib.type_check import real
 
 
-PLOT_DISTRO_H = False
-
-class Math_toolbox():
-    def __init__(self):
-        pass
-
-    def GenerateToeplitz(self,h_vect,N):
-        toeplitz_matrix = np.zeros((2*N-1,N))
-        toeplitz_row = 0
-        for i in range(0,N):
-            toeplitz_col = 0
-            for j in range(i,-1,-1):
-                toeplitz_matrix[toeplitz_row][toeplitz_col]=h_vect[j]
-                toeplitz_col+=1
-            toeplitz_row+=1
-            
-        for i in range(N-2,-1,-1):
-            toeplitz_col = -1*i-1
-            offset = toeplitz_col
-            for j in range (i,-1,-1):
-                toeplitz_matrix[toeplitz_row][toeplitz_col]=h_vect[j+offset]
-                toeplitz_col+=1
-            toeplitz_row+=1
-        
-        return toeplitz_matrix
-    
-    def print_latex_format(self,Matrix):
-        print("\\begin{pmatrix}")
-        for n in range(0,len(Matrix)):
-            for m in range(0,len(Matrix[n])):
-                if(m < len(Matrix[n])-1):
-                    print(str(Matrix[n][m])+" & ",end='')
-                else:
-                    print(str(Matrix[n][m]),end='')
-            print("\\\\")
-
-        print("\\end{pmatrix}")
 
 class Sig_Processing:
     def __init__(self):
@@ -93,30 +59,36 @@ class Sig_Processing:
 
 class Test(Sig_Processing):
     def __init__(self,items):
+        # 16 Taps
         self.N = 16
+        # Number of random realizations
         self.Realizations = items
+        # Gaussian noise parameters
+        SNR   = -10
+        mu    = 0
+        sigma = 1/(10**(SNR/10))
+        print(sigma)
         
-        mu = 0
-        sigma = pi/10
+        #Channel vector
         self.H = np.zeros((self.Realizations,self.N))
         
+        #Generating Guassian noise for each realization
         for M in range (0,self.Realizations):
             self.H[M] = np.random.normal(mu,sigma,self.N)
         
             if PLOT_DISTRO_H:
                 count, bins, ignored = plt.hist(self.H[M], self.N, density=True)
                 plt.plot(bins, 1/(sigma * np.sqrt(2 * np.pi)) *
-
-                    np.exp( - (bins - mu)**2 / (2 * sigma**2) ),
-
-                linewidth=2, color='r')
+                    np.exp( - (bins - mu)**2 / (2 * sigma**2)),
+                    linewidth=2, color='r')
                 plt.show()
         
-        
+        #DELTA generation vector calles as R
         self.R = np.zeros((2*self.N-1,1))
         self.R[self.N-1] = 1
+        
+        #Generate data frame data
         columns =[]
-
         for i in range (0,self.N):
             columns.append('X'+str(i))
 
@@ -124,8 +96,11 @@ class Test(Sig_Processing):
             columns.append('R'+str(i))
             
         self.df          = pd.DataFrame(columns = columns)
+        
+        #Custom math toolbox for Toeplizt matrix
         self.tool        = Math_toolbox()
-
+        
+        
     def SigErrThreshold(self):
         return (self.RMS < .1 and self.Diff_var < .05)
 
@@ -152,17 +127,20 @@ class Test(Sig_Processing):
 
 Generator = Test(10000)
 
-for n in range(0,Generator.Realizations):
+for idx in range(0,Generator.Realizations):
     #Take realization N and generate it toeplitz matrix
-    Generator.Set_Toeplitz_matrix(n)
+    Generator.Set_Toeplitz_matrix(idx)
     # Pseudo Inverse H and isolate for I
     Generator.PseudoInverse() 
     # H*I=R, calculates error from I got by pseudo inverse
     Generator.ReconstructSignal()
 
-    if(Generator.SigErrThreshold()):
-        #Generator.Plot_realization(Generator.Reconstruct)
-        Generator.DataFrameAppend()
+    #if(Generator.SigErrThreshold()):
+    #Generator.Plot_realization(Generator.Reconstruct)
+    Generator.Plot_realization(Generator.Top_matrix.T@Generator.R)
+    exit()
+    Generator.DataFrameAppend()
+        
         
 #Generator.SaveFrameInCSV()
 
