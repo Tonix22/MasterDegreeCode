@@ -1,0 +1,6 @@
+*pyc
+*Tex
+partial_movies_files/*.mp4
+*.png
+manim_animations/MesssagePassing/media/videos/VectorizeDD/*/partial_movie_files
+*.txt
