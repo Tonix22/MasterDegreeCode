@@ -59,3 +59,5 @@ def Test():
     Fade = rayleightFading()
     gen = Fade.Generate(size = 67591)
     Fade.Plot(gen)
+    
+Test()
