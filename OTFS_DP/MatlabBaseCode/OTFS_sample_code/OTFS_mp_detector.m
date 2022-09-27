@@ -25,109 +25,182 @@
 %    - Latest version of this code may be downloaded from: https://ecse.monash.edu/staff/eviterbo/
 %    - Freely distributed for educational and research purposes
 %%
-function x_est = OTFS_mp_detector(N,M,M_mod,taps,delay_taps,Doppler_taps,chan_coef,sigma_2,y)
 
-yv = reshape(y,N*M,1);
-n_ite = 200;
-delta_fra = 0.6;
-alphabet = qammod(0:M_mod-1,M_mod,0,'gray');
+%% chann_taps are the Channel chann_taps
+function x_est = OTFS_mp_detector(N,M,M_mod,chann_taps,Delay_taps,Doppler_taps,chan_coef,sigma_2,y)
 
-mean_int = zeros(N*M,taps);
-var_int = zeros(N*M,taps);
-p_map = ones(N*M,taps,M_mod)*(1/M_mod);
+yv    = reshape(y,N*M,1); % reshape to a vector 
+n_ite = 50;
+delta = 0.6; % damping factor or convergence speed
+alphabet = qammod(0:M_mod-1,M_mod,'gray');% all posible constelations
+
+mean_ec = zeros(N*M,chann_taps);
+var_ec  = zeros(N*M,chann_taps);
+%M_mod constelation size
+%chann_taps, are delay chann_taps
+
+% probability mass function with equally likelihood pero symbol
+p_map    = ones(N*M,chann_taps,M_mod)*(1/M_mod); 
 
 conv_rate_prev = -0.1;
+z  = exp((1i*2*pi)/(N*M));
+
 for ite=1:n_ite
     %% Update mean and var
-    for ele1=1:1:M
-        for ele2=1:1:N
-            mean_int_hat = zeros(taps,1);
-            var_int_hat = zeros(taps,1);
-            for tap_no=1:taps
-                m = ele1-1-delay_taps(tap_no)+1;
-                add_term = exp(1i*2*(pi/M)*(m-1)*(Doppler_taps(tap_no)/N));
-                add_term1 = 1;
-                if ele1-1<delay_taps(tap_no)
-                    n = mod(ele2-1-Doppler_taps(tap_no),N) + 1;
-                    add_term1 = exp(-1i*2*pi*((n-1)/N));
+    for l=1:1:M % delay
+        for k=1:1:N % doppler
+            %mean and variance
+            % Taps are delay chann_taps s
+            mean_de_hat = zeros(chann_taps,1); 
+            var_de_hat  = zeros(chann_taps,1);
+            % Channel chann_taps
+            for e=1:chann_taps
+                %Get the channel value given a linear filter iteration Z(q-l)
+                %li = Delay_taps(e);
+                %ki = Doppler_taps(e);
+                % Fixed doppler column k moving along li rows delay path
+                % -1 is because taps begin in 0 index
+                %l_idx = l-li-1;
+                %add_term  = z^(ki*(l_idx));
+
+                %Doppler move left
+                %Delay move up
+                add_term  = exp(1i*2*pi*((l-Delay_taps(e)-1)/M)*(Doppler_taps(e)/N));
+    
+                circularity = 1;
+                n=0;
+                if l-1 < Delay_taps(e) % circularity
+                    n = mod(k-Doppler_taps(e)-1,N) + 1;
+                    circularity = exp(-1i*2*pi*((n-1)/N));
                 end
-                new_chan = add_term * (add_term1) * chan_coef(tap_no);
+    
+                %dlmwrite('data.csv',[l,k,n,e],'-append') ; % 9 significant figures.
+
+                %Get Channel value H_de
+                H_de = add_term * (circularity) * chan_coef(e); 
+
+                %vector position
+                %delay is tap and move trought doppler k
+                v_pos = N*(l-1)+k;
                 
+                %Iterate over possible constelations
                 for i2=1:1:M_mod
-                    mean_int_hat(tap_no) = mean_int_hat(tap_no) + p_map(N*(ele1-1)+ele2,tap_no,i2) * alphabet(i2);
-                    var_int_hat(tap_no) = var_int_hat(tap_no) + p_map(N*(ele1-1)+ele2,tap_no,i2) * abs(alphabet(i2))^2;
+                    mean_de_hat(e) = mean_de_hat(e) + p_map(v_pos,e,i2) * alphabet(i2);
+                    var_de_hat(e)  = var_de_hat(e)  + p_map(v_pos,e,i2) * abs(alphabet(i2))^2;
                 end
-                mean_int_hat(tap_no) = mean_int_hat(tap_no) * new_chan;
-                var_int_hat(tap_no) = var_int_hat(tap_no) * abs(new_chan)^2;
-                var_int_hat(tap_no) = var_int_hat(tap_no) - abs(mean_int_hat(tap_no))^2;
+                mean_de_hat(e) = mean_de_hat(e) * H_de;
+                var_de_hat(e)  = var_de_hat(e) * abs(H_de)^2;
+                var_de_hat(e)  = var_de_hat(e) - abs(mean_de_hat(e))^2;
             end
-            
-            mean_int_sum = sum(mean_int_hat);
-            var_int_sum = sum(var_int_hat)+(sigma_2);
-            
-            for tap_no=1:taps
-                mean_int(N*(ele1-1)+ele2,tap_no) = mean_int_sum - mean_int_hat(tap_no);
-                var_int(N*(ele1-1)+ele2,tap_no) = var_int_sum - var_int_hat(tap_no);
+            % mu_dc_i and sigma_dc_i
+            % sum e in I_d
+            mean_dc = sum(mean_de_hat);
+            var_dc  = sum(var_de_hat)+(sigma_2);
+            % End From step 2
+
+            %Matrix each col is a vector of NM where is saved the tap result 
+            %There are only tap_no cols or dealy paths
+            v_pos = N*(l-1)+k;  
+            for e=1:chann_taps
+                mean_ec(v_pos,e) = mean_dc - mean_de_hat(e);
+                var_ec(v_pos,e)  = var_dc - var_de_hat(e);
             end
-            
         end
     end
+
     %% Update probabilities
     sum_prob_comp = zeros(N*M,M_mod);
-    dum_eff_ele1 = zeros(taps,1);
-    dum_eff_ele2 = zeros(taps,1);
-    for ele1=1:1:M
-        for ele2=1:1:N
+    pmf_delay_shift  = zeros(chann_taps,1);
+    pmf_doppler_shift  = zeros(chann_taps,1);
+
+    for l=1:1:M
+        for k=1:1:N
             dum_sum_prob = zeros(M_mod,1);
-            log_te_var = zeros(taps,M_mod);
-            for tap_no=1:taps
-                
-                if ele1+delay_taps(tap_no)<=M
-                    eff_ele1 = ele1 + delay_taps(tap_no);
-                    add_term = exp(1i*2*(pi/M)*(ele1-1)*(Doppler_taps(tap_no)/N));
-                    int_flag = 0;
-                else
-                    eff_ele1 = ele1 + delay_taps(tap_no)- M;
-                    add_term = exp(1i*2*(pi/M)*(ele1-1-M)*(Doppler_taps(tap_no)/N));
+            log_te_var   = zeros(chann_taps,M_mod);
+            for tap_no=1:chann_taps
+                % Delay Choose
+                if l+Delay_taps(tap_no) <= M
+                    delay_shift = l+Delay_taps(tap_no);
+                    add_term    = exp(1i*2*pi*((l-1)/M)*(Doppler_taps(tap_no)/N));
+                    int_flag    = 0;
+                else % Delay circularity is needed 
+                    delay_shift = l + Delay_taps(tap_no)- M;
+                    add_term = exp(1i*2*pi*((l-1-M)/M)*(Doppler_taps(tap_no)/N));
                     int_flag = 1;
                 end
-                add_term1 = 1;
-                if int_flag==1
-                    add_term1 = exp(-1i*2*pi*((ele2-1)/N));
-                end
-                eff_ele2 = mod(ele2-1+Doppler_taps(tap_no),N) + 1;
-                new_chan = add_term * add_term1 * chan_coef(tap_no);
                 
-                dum_eff_ele1(tap_no) = eff_ele1;
-                dum_eff_ele2(tap_no) = eff_ele2;
-                for i2=1:1:M_mod
-                    dum_sum_prob(i2) = abs(yv(N*(eff_ele1-1)+eff_ele2)- mean_int(N*(eff_ele1-1)+eff_ele2,tap_no) - new_chan * alphabet(i2))^2;
-                    dum_sum_prob(i2)= -(dum_sum_prob(i2)/var_int(N*(eff_ele1-1)+eff_ele2,tap_no));
+                % Doppler choose include circularity
+                doppler_shift = mod(k-1+Doppler_taps(tap_no),N) + 1;
+
+                k_right_comp = 1;
+                % if k_right_comp is needed 
+                if int_flag==1
+                    k_right_comp = exp(-1i*2*pi*((k-1)/N));
                 end
+
+                % Channel H_ec
+                H_ec = add_term * k_right_comp * chan_coef(tap_no);
+
+                % PMF taps
+                pmf_delay_shift  (tap_no) = delay_shift;
+                pmf_doppler_shift(tap_no) = doppler_shift;
+
+                %vector position interleaving because each chann tap shifts change
+                v_pos = N*(delay_shift-1)+doppler_shift;
+                
+                for i2=1:1:M_mod
+                    %numerator |-y_e-u_ec-H_ec*a_j|^2
+                    dum_sum_prob(i2) = abs(yv(v_pos)- mean_ec(v_pos,tap_no) - H_ec * alphabet(i2))^2;
+                    %denominator sigma_ec^2
+                    dum_sum_prob(i2) = -(dum_sum_prob(i2)/var_ec(v_pos,tap_no));
+                end
+
+                %Reject, exp, sum routine -- Begin 
+                %Remove max probability alias exlude e=d
                 dum_sum = dum_sum_prob - max(dum_sum_prob);
-                dum1 = sum(exp(dum_sum));
+                %exponential set max elemnet to 1
+                dum1 = sum(exp(dum_sum)); % sum xi(e,c,k)
+                %Reject, exp, sum routine -- End
+                
                 log_te_var(tap_no,:) = dum_sum - log(dum1);
+
             end
+
             for i2=1:1:M_mod
                 ln_qi(i2) = sum(log_te_var(:,i2));
             end
+
+            %Reject, exp, sum routine -- Begin 
             dum_sum = exp(ln_qi - max(ln_qi));
-            dum1 = sum(dum_sum);
-            sum_prob_comp(N*(ele1-1)+ele2,:) = dum_sum/dum1;
-            for tap_no=1:1:taps
-                eff_ele1 = dum_eff_ele1(tap_no);
-                eff_ele2 = dum_eff_ele2(tap_no);
-                
-                dum_sum = log_te_var(tap_no,:);
+            dum1    = sum(dum_sum);
+            %Reject, exp, sum routine -- End
+
+            pcd_aj  = dum_sum/dum1; % 6.27
+            sum_prob_comp(N*(l-1)+k,:) = pcd_aj; 
+
+            % PMF update
+            for tap_no=1:1:chann_taps
+                delay_shift   = pmf_delay_shift(tap_no);
+                doppler_shift = pmf_doppler_shift(tap_no);
+                v_pos         = N*(delay_shift-1)+doppler_shift;
+
+                dum_sum   = log_te_var(tap_no,:);
                 ln_qi_loc = ln_qi - dum_sum;
-                dum_sum = exp(ln_qi_loc - max(ln_qi_loc));
-                dum1 = sum(dum_sum);
-                p_map(N*(eff_ele1-1)+eff_ele2,tap_no,:) = (dum_sum/dum1)*delta_fra + (1-delta_fra)*reshape(p_map(N*(eff_ele1-1)+eff_ele2,tap_no,:),1,M_mod);
+
+                %Reject, exp, sum routine -- Begin 
+                dum_sum   = exp(ln_qi_loc - max(ln_qi_loc));
+                dum1      = sum(dum_sum);
+                %Reject, exp, sum routine -- End
+
+                pcd_aj    = dum_sum/dum1; % 6.27
+                pcd_aj_before = reshape(p_map(v_pos,tap_no,:),1,M_mod);
+                p_map(v_pos,tap_no,:) = (pcd_aj)*delta + (1-delta)*pcd_aj_before; % (37)
             end
-            
         end
     end
-    conv_rate =  sum(max(sum_prob_comp,[],2)>0.99)/(N*M);
+    %Step 3 Convergence indicator
+    conv_rate =  sum(max(sum_prob_comp,[],2) > 0.99)/(N*M); % (6.29)(39)
+    %Step 4 
     if conv_rate==1
         sum_prob_fin = sum_prob_comp;
         break;
@@ -139,10 +212,10 @@ for ite=1:n_ite
     end
 end
 x_est = zeros(N,M);
-for ele1=1:1:M
-    for ele2=1:1:N
-        [~,pos] = max(sum_prob_fin(N*(ele1-1)+ele2,:));
-        x_est(ele2,ele1) = alphabet(pos);
+for l=1:1:M
+    for k=1:1:N
+        [~,pos] = max(sum_prob_fin(N*(l-1)+k,:));%argmax 
+        x_est(k,l) = alphabet(pos); % guessing the sybol
     end
 end
 end

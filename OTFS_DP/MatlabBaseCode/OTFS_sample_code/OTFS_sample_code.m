@@ -45,20 +45,23 @@ N_syms_perfram = N*M;
 % number of bits per frame
 N_bits_perfram = N*M*M_bits;
 
-SNR_dB = 20:2:20;
+SNR_dB = 0:1:30;
 SNR = 10.^(SNR_dB/10);
 noise_var_sqrt = sqrt(1./SNR);
 sigma_2 = abs(eng_sqrt*noise_var_sqrt).^2;
 %%
 rng(1)
-N_fram = 10^4;
+N_fram = 10^2;
 err_ber = zeros(length(SNR_dB),1);
 for iesn0 = 1:length(SNR_dB)
     for ifram = 1:N_fram
         %% random input bits generation%%%%%
         data_info_bit = randi([0,1],N_bits_perfram,1);
+        % Conatenate 2 bits and then convert them binary 2'b00 string 
+        % to decimal
         data_temp = bi2de(reshape(data_info_bit,N_syms_perfram,M_bits));
-        x = qammod(data_temp,M_mod,0,'gray');
+        % Decimal to IQ constelation complex number
+        x = qammod(data_temp,M_mod,'gray');
         x = reshape(x,N,M);
         
         %% OTFS modulation%%%%
@@ -77,14 +80,15 @@ for iesn0 = 1:length(SNR_dB)
         x_est = OTFS_mp_detector(N,M,M_mod,taps,delay_taps,Doppler_taps,chan_coef,sigma_2(iesn0),y);
         
         %% output bits and errors count%%%%%
-        data_demapping = qamdemod(x_est,M_mod,0,'gray');
+        data_demapping = qamdemod(x_est,M_mod,'gray');
         data_info_est = reshape(de2bi(data_demapping,M_bits),N_bits_perfram,1);
         errors = sum(xor(data_info_est,data_info_bit));
-        err_ber(iesn0) = errors + err_ber(iesn0)
+        err_ber(iesn0) = errors + err_ber(iesn0);
         ifram
     end
+    iesn0
 end
-err_ber_fram = err_ber/N_bits_perfram./N_fram
+err_ber_fram = err_ber/N_bits_perfram./N_fram;
 semilogy(SNR_dB, err_ber_fram,'-*','LineWidth',2);
 title(sprintf('OTFS'))
 ylabel('BER'); xlabel('SNR in dB');grid on
