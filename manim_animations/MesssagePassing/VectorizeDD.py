@@ -57,6 +57,7 @@ class AnimatedSquareToCircle(Scene):
         
         eq_v1.add(y,v1,tap_delay1,tap_delay2,tap_delayN)
         
+        #Thrid animation
         #Vectorized reduced
         v_reduced = MobjectMatrix([
             [Tex(r'$y_0$')],
@@ -88,6 +89,18 @@ class AnimatedSquareToCircle(Scene):
         spaces =  VGroup()
         spaces.add(m_space,y_m_space)
         
+        #fifth animation
+        H = Tex(" = H ",font_size=65)
+        v_reduced_x = MobjectMatrix([
+            [Tex(r'$x_0$')],
+            [Tex(r'$x_1$')],
+            [Tex(r'$\vdots$')],
+            [Tex(r'$x_{M-1}$')]
+        ])
+        v_reduced_x.add(SurroundingRectangle(v_reduced_x.get_rows()[0]))
+        v_reduced_x.add(SurroundingRectangle(v_reduced_x.get_rows()[1],color='GREEN'))
+        v_reduced_x.shift(RIGHT*2)
+        
     
         self.play(Create(eq_m0))  # animate the creation of the square
         self.wait(5)
@@ -97,6 +110,12 @@ class AnimatedSquareToCircle(Scene):
         self.wait(2)
         self.play(Create(spaces))
         self.wait(5)
-        self.play(Unwrite(eq_v_reduced))
+        self.play(eq_v_reduced.animate(run_time = 1, lag_ratio=0.5).shift(LEFT*2))
         self.play(Unwrite(spaces))
+        self.play(Create(H))
+        self.play(Create(v_reduced_x))
+        self.wait(5)
+        self.play(Unwrite(eq_v_reduced))
+        self.play(Unwrite(v_reduced_x))
+        self.play(Unwrite(H))
         
