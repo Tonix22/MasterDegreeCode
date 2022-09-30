@@ -6,7 +6,7 @@ M=64;
 
 % normalized DFT matrix
 Fn = dftmtx(N);
-Fn = Fn/norm(Fn)
+Fn = Fn/norm(Fn);
 
 %subcarrier spacing
 delta_f = 15e3;
@@ -33,13 +33,14 @@ N_syms_per_frame = N*M;
 % number of informaton bits in one frame
 N_bits_per_frame = N*M*log2(mod_size);
 %generate random bits
-tx_info_bits = randi([0,1],N_bits_per_frame,1)
+tx_info_bits = randi([0,1],N_bits_per_frame,1);
 
 %QAM modulation 
 tx_info_bits = qammod(tx_info_bits,mod_size,'gray','InputType','bit');
 
 %Generate the MxN OTFS delay_Doppler frame
-X = reshape(tx_info_bits,M,N)
+X = reshape(tx_info_bits,M,N);
+x = reshape(X.',N*M,1);%X.' the dot is to dont modify complex part
 
 Im = eye(M);
 
@@ -53,5 +54,13 @@ for j=1:N
     end
 end
 
-X_tilda = X*Fn';
+
+
+% Method 1 (Eqs. (4.19) and (4.20))
+X_tilda=X*Fn';
 s=reshape(X_tilda,1,N*M);
+% Method 2 (Eq. (4.35))
+s1=P*kron(Im,Fn')*x;
+% Method 3 (Eq. (4.35))s
+s2=kron(Fn',Im)*P*x;
+
