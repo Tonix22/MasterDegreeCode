@@ -10,6 +10,7 @@ class Transmiter():
     def __init__(self,N=16,M=64,delta_f=15e3,QAM_symbols=4):
         self.N = N
         self.M = M
+        self.P = None
         # normalized DFT matrix
         self.Fn = np.fft.fft(np.eye(N))
         self.Fn = self.Fn/norm(self.Fn)
@@ -48,7 +49,7 @@ class Transmiter():
         return s
     #Permutaton matrix implement
     def Permutation_method(self):
-        P  = Permutation_matrix(self.N,self.M)
+        self.P  = Permutation_matrix(self.N,self.M)
         Im = np.eye(self.M)
-        s  = P@np.kron(Im,self.Fn.T)@self.vect_x
+        s  = self.P@np.kron(Im,self.Fn.T)@self.vect_x
         return s
