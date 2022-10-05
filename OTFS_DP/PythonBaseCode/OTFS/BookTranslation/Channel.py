@@ -23,12 +23,14 @@ class Channel():
             Model = GPP_3_models[GPP_standard]
             Model.To_DB_and_Normalize()
             # generate channel coefficients (Rayleigh fading)
-            self.g_i = np.sqrt(Model.pdp_linear)@(np.sqrt(2)*(np.random.randn((1,Model.taps))+1j*np.random.randn((1,Model.taps))))
+            # pdp_power delay profile
+            self.g_i = np.sqrt(Model.pdp_linear)@\
+                (np.sqrt(2)*(np.random.randn((1,Model.taps))+\
+                    1j*np.random.randn((1,Model.taps))))
             # generate delay taps (assuming integer delay taps)
             self.l_i=np.around(Model.delay/self.TX.delay_resolution)
             # Generate Doppler taps (assuming Jakes spectrum)
             self.k_i = (self.TX.k_max*cos(2*pi*np.random.randn((1,Model.taps))))
-            
             self.taps = Model.taps
 
         # assuming uniform spectrum
@@ -54,7 +56,6 @@ class Channel():
         # Generate discrete delay-time channel coefficients and matrix.
         #S[q] tap shifting
         z = np.exp(1j*2*pi/(self.grid_size))
-        
         #Generate discrete-time baseband channel in TDL form (Eq. (2.22))
         #DISCRETE TIME
         self.gs = np.zeros((self.delay_spread+1,self.grid_size))
@@ -73,9 +74,15 @@ class Channel():
         
 
     def Gen_delay_time(self):
-        self.H_tilda=P*G*P.T
-        
-        # Generate r by passing the Tx signal through the channel.
+        P = self.TX.P
+        self.H_tilda = P*self.G*P.T
+
+    def Gen_delay_doppler(self):
+        Fn = self.Tx.Fn
+        P  = self.TX.P
+        Im = np.eye(self.M)
+        H  = np.kron(Im,Fn)@(P.T@self.G@P)*np.kron(Im,Fn.T)
+    # Generate r by passing the Tx signal through the channel.
 
 
         
