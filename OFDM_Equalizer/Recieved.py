@@ -13,7 +13,10 @@ class RX():
         self.Qsym   = QPSK(self.sym_no * self.total) # all symbols per realization
         #Each column is a realization 
         self.Qsym.GroundTruth = np.reshape(self.Qsym.GroundTruth,(self.sym_no,self.total,1))
-        self.Qsym.r = np.reshape(self.Qsym.r,(self.sym_no,self.total,1))
+        self.Qsym.r    = np.reshape(self.Qsym.r,(self.sym_no,self.total,1))
+        self.Qsym.bits = np.reshape(self.Qsym.bits,(self.sym_no,self.total,1))
+        
+        #Collapse with channel
         self.Generate()
     
     def Generate(self):

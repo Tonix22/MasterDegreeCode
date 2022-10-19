@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 class QPSK():
     def __init__(self,num_symbols, noise = False, noise_power = 0.05):
         np.random.seed(42)#fixed bits
-        x_int       = np.random.randint(0,4,num_symbols)
+        self.bits       = np.random.randint(0,4,num_symbols)
         phase_noise = 0
-        gray_pos    = [45,315,135,225]
-        x_degrees = []
-        for n in x_int:
+        gray_pos    = [225,135,315,45]
+        x_degrees   = []
+        for n in self.bits:
             x_degrees.append(gray_pos[n])
         x_degrees = np.asarray(x_degrees)   
         x_radians   = x_degrees*np.pi/180
@@ -30,7 +30,13 @@ class QPSK():
         #Adjust shape
         self.GroundTruth = np.expand_dims(self.GroundTruth,axis=1)
         self.r = np.expand_dims(self.r,axis=1)
-          
+    
+    
+    def Demod(self):
+        pass
+        
+    
+        
     def QPSK_Plot(self,vect):
         
         fig, ax = plt.subplots()
