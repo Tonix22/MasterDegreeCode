@@ -1,3 +1,4 @@
+from operator import index
 import torch
 import torch.nn as nn
 import numpy as np
@@ -8,113 +9,119 @@ from   tqdm import tqdm
 from   Networks import LinearNet
 import pandas as pd
 from datetime import datetime
+import matplotlib.pyplot as plot
 #from torch.utils.tensorboard import SummaryWriter
 
 class NetLabs():
-    def __init__(self,loss_type="MSE",worst_snr = 5):
+    def __init__(self,loss_type="MSE",best_snr = 60,worst_snr = 5):
         #Constant Paramters
-        self.BEST_SNR  = 60
+        self.BEST_SNR  = best_snr
         self.WORST_SNR = worst_snr
+        self.loss_type = loss_type
         #Data set read
-        self.data = RX()
+        self.data   = RX()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         #Data numbers
         self.N = self.data.sym_no
         
         #ground truth
-        self.Get_ground_truth(loss_type)
+        self.Get_ground_truth()
         
         #Set up NN
-        self.Generate_Network_Model(loss_type)
+        self.Generate_Network_Model()
         
         #Training data lenght is only 80%
         self.training_data = int(self.data.total*.8)
         
-    def Get_ground_truth(self,criteria):
-        if(criteria == "MSE"):
-            self.gt_real = torch.tensor(self.data.Qsym.GroundTruth.real,device  = torch.device('cuda'),dtype=torch.float64)
-            self.gt_imag = torch.tensor(self.data.Qsym.GroundTruth.imag,device  = torch.device('cuda'),dtype=torch.float64)
-            self.gt = torch.cat((self.gt_real,self.gt_imag),0)
+    def Get_ground_truth(self):
+        if(self.loss_type == "MSE"):
+            self.gt_real = torch.tensor(self.data.Qsym.GroundTruth.real,device = self.device,dtype=torch.float64)
+            self.gt_imag = torch.tensor(self.data.Qsym.GroundTruth.imag,device = self.device,dtype=torch.float64)
+            self.gt      = torch.cat((self.gt_real,self.gt_imag),0)
+            del self.gt_real
+            del self.gt_imag
+            torch.cuda.empty_cache()
             
-        if(criteria == "Entropy"):
-            pass
-            #self.gt_real
-            #self.gt_imag
-            #self.gt
-        
-        del self.gt_real
-        del self.gt_imag
-        torch.cuda.empty_cache()
+        if(self.loss_type == "Entropy"):
+            self.gt = torch.tensor(self.data.Qsym.bits,device = self.device,dtype=torch.float64)
+    
 
-
-    def Generate_Network_Model(self,criteria):
+    def Generate_Network_Model(self):
         #MODEL COFING
-        if(criteria == "MSE"):
+        if(self.loss_type == "MSE"):
             self.model  = LinearNet(input_size=2*self.N, hidden_size=4*self.N, num_classes=2*self.N)
         
-        if(criteria == "Entropy"):
+        if(self.loss_type == "Entropy"):
             self.model  = LinearNet(input_size=2*self.N, hidden_size=4*self.N, num_classes=self.data.sym_no)
             
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model  = self.model.to(self.device)
         
         self.optimizer = optim.Adam(self.model.parameters(),lr=.001,eps=.001)
         
-        if(criteria == "MSE"):
+        if(self.loss_type == "MSE"):
             #criteria based on MSE
             self.criterion = nn.MSELoss()
-        if(criteria == "Entropy"):
+        if(self.loss_type == "Entropy"):
             self.criterion = nn.CrossEntropyLoss()
             
+    #************************
+    #*******TRAINNING********
+    #************************
     
     def Trainning(self):
         df = pd.DataFrame()
-        for SNR in range(self.BEST_SNR,self.WORST_SNR,-1):
-            losses = []
-            self.Generate_SNR(self.data,SNR)
-            #loop is the progress bar
-            loop  = tqdm(range(0,self.training_data),desc="Progress")
-            for i in loop:     
-                X  = torch.squeeze(self.r[:,i],1)  # input
-                Y  = torch.squeeze(self.gt[:,i],1) # groung thruth
-                        
-                # Compute prediction and loss
-                pred = self.model(X.float())
-                loss = self.criterion(pred,Y.float())
+        for epochs in range(0,1):
+            for SNR in range(self.BEST_SNR,self.WORST_SNR,-1):
+                losses = []
+                self.Generate_SNR(self.data,SNR)
+                #loop is the progress bar
+                loop  = tqdm(range(0,self.training_data),desc="Progress")
+                for i in loop:     
+                    X  = torch.squeeze(self.r[:,i],1)  # input
+                    Y  = torch.squeeze(self.gt[:,i],1) # groung thruth
+                            
+                    # Compute prediction and loss
+                    pred = self.model(X.float())
+                    loss = self.criterion(pred,Y.float())
+                    
+                    #Record the Average loss
+                    losses.append(loss.cpu().detach().numpy())
+                    #Clear gradient
+                    self.optimizer.zero_grad()
+                    # Backpropagation
+                    loss.backward()
+                    # Update Gradient
+                    self.optimizer.step()
+                    
+                    #Status bar and monitor    
+                    if(i % 500 == 0):
+                        loop.set_description(f"SNR [{SNR}]")
+                        loop.set_postfix(loss=loss.cpu().detach().numpy())
+                        print(GPUtil.showUtilization())
                 
-                #Record the Average loss
-                losses.append(torch.mean(loss).cpu().detach().numpy())
-                #Clear gradient
-                self.optimizer.zero_grad()
-                # Backpropagation
-                loss.backward()
-                # Update Gradient
-                self.optimizer.step()
-                
-                #Status bar and monitor    
-                if(i % 500 == 0):
-                    loop.set_description(f"SNR [{SNR}]")
-                    loop.set_postfix(loss=torch.mean(loss).cpu().detach().numpy())
-                    print(GPUtil.showUtilization())
-            
-            df["SNR{}".format(SNR)]= losses
-            losses.clear()
+                df["SNR{}".format(SNR)]= losses
+                losses.clear()
             
         df.to_csv('reports/Train_Loss_SNR_{}.csv'.format(self.get_time_string()), header=True, index=False)
         self.SaveModel("PTH")
         
                     
-    #TODO BER/SNR PLOT
+    #************************
+    #*******TESTING**********
+    #************************
     def Testing(self,pth):
         df = pd.DataFrame()
         
         self.model.load_state_dict(torch.load(pth))
-        
+        BER    = []
+        frames = self.data.total-self.training_data
         for SNR in range(self.BEST_SNR,self.WORST_SNR,-1):
             losses = []
             
             self.Generate_SNR(self.data,SNR)
-            loop  = tqdm(range(self.training_data,self.data.total),desc="Progress")
+            loop   = tqdm(range(self.training_data,self.data.total),desc="Progress")
+            errors = 0
             
             for i in loop:
                 
@@ -123,20 +130,50 @@ class NetLabs():
                 
                 pred = self.model(X.float())
                 loss = self.criterion(pred,Y.float())
+                losses.append(loss.cpu().detach().numpy())
                 
-                losses.append(torch.mean(loss).cpu().detach().numpy())
-                
+                #BER
+                if(self.loss_type == "MSE"):
+                    #demodulate prediction data
+                    split  = torch.tensor_split(pred.cpu().detach(),2)
+                    real   = split[0].numpy()
+                    imag   = split[1].numpy()
+                    res    = real + 1j*imag
+                    rxbits = self.data.Qsym.Demod(res)
+                else:
+                    rxbits = pred.cpu().detach()
+
+                errors+=np.sum(np.abs(self.data.Qsym.bits[:,i]-rxbits))
+                                
                 #Status bar and monitor  
-                if(i % 100 == 0):
+                if(i % 500 == 0):
                     loop.set_description(f"SNR [{SNR}]")
                     loop.set_postfix(loss=torch.mean(loss).cpu().detach().numpy())
                     print(GPUtil.showUtilization())
-            
+                    
+            #Apend report to data frame
             df["SNR{}".format(SNR)]= losses
             losses.clear()
             
-        df.to_csv('reports/Train_Loss_SNR_{}.csv'.format(self.get_time_string()), header=True, index=False)
-                    
+            #Calculate BER
+            BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
+        
+        
+        str_time = self.get_time_string()
+        df.to_csv('reports/Testing_Loss_SNR{}.csv'.format(str_time), header=True, index=False)
+        
+        indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,)
+        BER = np.asarray(BER)
+        plot.grid(True, which ="both")
+        plot.semilogy(indexValues,BER)
+        plot.title('SNR and BER')
+        # Give x axis label for the semilogy plot
+        plot.xlabel('SNR')
+        # Give y axis label for the semilogy plot
+        plot.ylabel('BER')
+        plot.savefig('plots/Test_BER_SNR{}.png'.format(str_time))
+           
+           
         
     def SaveModel(self,format):
         if(format == "PTH"):

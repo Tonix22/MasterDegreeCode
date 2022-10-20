@@ -6,6 +6,7 @@ import numpy as np
 class RX():
     def __init__(self):
         #Channel Data set is of size 48
+        self.bitsframe = 2
         self.sym_no = 48
         self.total  = 20000
         self.LOS    = Channel()
@@ -14,7 +15,7 @@ class RX():
         #Each column is a realization 
         self.Qsym.GroundTruth = np.reshape(self.Qsym.GroundTruth,(self.sym_no,self.total,1))
         self.Qsym.r    = np.reshape(self.Qsym.r,(self.sym_no,self.total,1))
-        self.Qsym.bits = np.reshape(self.Qsym.bits,(self.sym_no,self.total,1))
+        self.Qsym.bits = np.reshape(self.Qsym.bits,(self.sym_no,self.total))
         
         #Collapse with channel
         self.Generate()

@@ -32,8 +32,25 @@ class QPSK():
         self.r = np.expand_dims(self.r,axis=1)
     
     
-    def Demod(self):
-        pass
+    def Demod(self,vect):
+        angle = None
+        bits  = []
+        for n in vect:
+            angle = np.angle(n,deg=True)
+            #First quadrant
+            if(angle >=0 and angle <= 90):
+                bits.append(3)#11
+            #Second quadrant
+            elif(angle > 90 and angle <=180):
+                bits.append(1)#01
+            #Third Quadrant
+            elif(angle > -180 and angle < -90):
+                bits.append(0)#00
+            #Fourth quadrant
+            elif(angle > -90 and angle < 0):
+                bits.append(2)#10
+                
+        return np.asarray(bits)      
         
     
         
