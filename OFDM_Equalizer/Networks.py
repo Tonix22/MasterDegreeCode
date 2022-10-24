@@ -9,12 +9,12 @@ class LinearNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(LinearNet, self).__init__()
         self.linear1 = nn.Linear(input_size, hidden_size)
-        self.f1      = nn.Tanh()
+        self.f1      = nn.ReLU()
         #hidden Layers
         self.linear2 = nn.Linear(hidden_size, hidden_size)
         self.f2      = nn.ReLU()
         self.linear3 = nn.Linear(hidden_size, hidden_size)
-        self.f3      = nn.Tanh()
+        self.f3      = nn.ReLU()
         #final Layer
         self.linear4 = nn.Linear(hidden_size, num_classes) 
     
@@ -34,34 +34,42 @@ class LinearNet(nn.Module):
 
 class Chann_EQ_Net(nn.Module):
     
-    def __init__(self, input_size, hidden_size, num_classes):
-        super(LinearNet, self).__init__()
+    def __init__(self, input_size, num_classes):
+        super(Chann_EQ_Net, self).__init__()
         self.stage1 = nn.Sequential(
-                          nn.Linear(input_size, input_size*input_size),
+                          nn.Linear(input_size, 2*int(input_size/2)**2),
                           nn.ReLU(),
-                          nn.Unflatten(1, torch.Size([input_size, 2]))
+                          nn.Unflatten(0,(1,2,int(input_size/2),int(input_size/2)))
         )
+        self.linear_size = int(input_size/2)-5-11-5-11-1-5+6
         #input_size-5-1
-        self.stage2 = torch.nn.Sequential(
-            torch.nn.Conv2d(2, 4, kernel_size=5, stride=1),#48-6 = 42
-            torch.nn.ReLU(),
-            torch.nn.AvgPool2d(kernel_size=11, stride=1),#42-11+1 = 32
+        self.stage2 = nn.Sequential(
+            nn.Conv2d(2, 4, kernel_size=5, stride=1),#48-5+1 = 44
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=11, stride=1),#43-11+1  = 34
         )
-        self.stage3 = torch.nn.Sequential(
-            torch.nn.Conv2d(4, 2, kernel_size=5, stride=1),#32-6 = 26
-            torch.nn.ReLU(),
-            torch.nn.AvgPool2d(kernel_size=11, stride=1),#25-11+1 = 16
+        self.stage3 = nn.Sequential(
+            nn.Conv2d(4, 2, kernel_size=5, stride=1),#34-5+1 = 30
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=11, stride=1),#30-11+1  = 20
         )
-        self.stage4 = torch.nn.Sequential(
-            torch.nn.Flatten(),
-            torch.nn.Linear(16*16,10*10),
-            torch.nn.RelU(),
-            torch.nn.Linear(10*10,num_classes)
+        self.stage4 = nn.Sequential(
+            nn.Conv2d(2, 1, kernel_size=1, stride=1),#20-1+1 = 20
+            nn.ReLU(),
+            nn.AvgPool2d(kernel_size=5, stride=1),#20-5+1   = 16
+        )
+        self.stage5 = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(16*16,10*10),
+            nn.ReLU(),
+            nn.Linear(10*10,num_classes)
         )
         
         
     def forward(self, x):
-        out = self.stage1(out)
+        out = self.stage1(x)
         out = self.stage2(out)
         out = self.stage3(out)
         out = self.stage4(out)
+        out = self.stage5(out)
+        return torch.squeeze(out)

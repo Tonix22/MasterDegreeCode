@@ -12,7 +12,7 @@ class QPSK():
         for n in self.bits:
             x_degrees.append(gray_pos[n])
         x_degrees = np.asarray(x_degrees)   
-        x_radians   = x_degrees*np.pi/180
+        x_radians = x_degrees*np.pi/180
         # this produces our QPSK complex symbols
         self.GroundTruth = np.cos(x_radians) + 1j*np.sin(x_radians)
 
@@ -25,7 +25,7 @@ class QPSK():
             #additive gausian noise
             self.r = self.GroundTruth * np.exp(1j*phase_noise) + n * np.sqrt(noise_power)
         else:
-            self.r = self.GroundTruth
+            self.r = np.copy(self.GroundTruth)
             
         #Adjust shape
         self.GroundTruth = np.expand_dims(self.GroundTruth,axis=1)

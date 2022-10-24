@@ -6,7 +6,7 @@ import torch.optim as optim
 from   Recieved import RX
 import GPUtil
 from   tqdm import tqdm
-from   Networks import LinearNet
+from   Networks import LinearNet,Chann_EQ_Net
 import pandas as pd
 from datetime import datetime
 import matplotlib.pyplot as plot
@@ -51,7 +51,8 @@ class NetLabs():
         #MODEL COFING
         if(self.loss_type == "MSE"):
             self.model  = LinearNet(input_size=2*self.N, hidden_size=4*self.N, num_classes=2*self.N)
-        
+            #self.model    = Chann_EQ_Net(input_size=2*self.N, num_classes=2*self.N)
+            
         if(self.loss_type == "Entropy"):
             self.model  = LinearNet(input_size=2*self.N, hidden_size=4*self.N, num_classes=self.data.sym_no)
             
@@ -71,7 +72,7 @@ class NetLabs():
     
     def Trainning(self):
         df = pd.DataFrame()
-        for epochs in range(0,1):
+        for epochs in range(0,4):
             for SNR in range(self.BEST_SNR,self.WORST_SNR,-1):
                 losses = []
                 self.Generate_SNR(self.data,SNR)
@@ -79,7 +80,7 @@ class NetLabs():
                 loop  = tqdm(range(0,self.training_data),desc="Progress")
                 for i in loop:     
                     X  = torch.squeeze(self.r[:,i],1)  # input
-                    Y  = torch.squeeze(self.gt[:,i],1) # groung thruth
+                    Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
                             
                     # Compute prediction and loss
                     pred = self.model(X.float())
@@ -96,7 +97,7 @@ class NetLabs():
                     
                     #Status bar and monitor    
                     if(i % 500 == 0):
-                        loop.set_description(f"SNR [{SNR}]")
+                        loop.set_description(f"SNR [{SNR}] EPOCH[{epochs}]")
                         loop.set_postfix(loss=loss.cpu().detach().numpy())
                         print(GPUtil.showUtilization())
                 
@@ -143,12 +144,14 @@ class NetLabs():
                 else:
                     rxbits = pred.cpu().detach()
 
-                errors+=np.sum(np.abs(self.data.Qsym.bits[:,i]-rxbits))
+                
+                errors+=np.unpackbits((self.data.Qsym.bits[:,i]^rxbits).view('uint8')).sum()
                                 
                 #Status bar and monitor  
                 if(i % 500 == 0):
                     loop.set_description(f"SNR [{SNR}]")
                     loop.set_postfix(loss=torch.mean(loss).cpu().detach().numpy())
+                    loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*frames))
                     print(GPUtil.showUtilization())
                     
             #Apend report to data frame
