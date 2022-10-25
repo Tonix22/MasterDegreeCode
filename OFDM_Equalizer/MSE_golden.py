@@ -16,9 +16,8 @@ def get_time_string():
     mn   = current_time.time().minute
     return "-{}_{}_{}-{}_{}".format(day,mon,year,hr,mn)
 
-def Equalizer(H,Y):
-    return np.linalg.inv(H@H.H)@H.H@Y
-    #return np.linalg.inv(H)@Y
+def Equalizer(H,Y,SNR):
+    return np.linalg.inv(H.H@H+np.eye(48)*(10**(-SNR/10)))@H.H@Y
 
 data = RX()
 BER    = []
@@ -40,8 +39,7 @@ for SNR in range(BEST_SNR,WORST_SNR,-5):
             NLOS_cnt+=1
         
         txbits = np.squeeze(data.Qsym.bits[:,i],axis=1)
-        I = Equalizer(H,Y)
-        X_hat = H@I
+        X_hat  = Equalizer(H,Y,SNR)
         rxbits = data.Qsym.Demod(X_hat)
         errors+=np.unpackbits((txbits^rxbits).view('uint8')).sum()
         
@@ -56,6 +54,7 @@ for SNR in range(BEST_SNR,WORST_SNR,-5):
     
 indexValues = np.arange(WORST_SNR,BEST_SNR,5)
 BER = np.asarray(BER)
+BER = np.flip(BER)
 plot.grid(True, which ="both")
 plot.semilogy(indexValues,BER)
 plot.title('SNR and BER')

@@ -36,4 +36,4 @@ class RX():
     
     def AWGN(self,SNR):
         for n in range (0,self.total):
-            self.Qsym.r[:,n] = self.Qsym.r[:,n] + np.sqrt(10**(-SNR/20))*(np.random.randn(self.sym_no,1) + 1j*np.random.randn(self.sym_no,1))
+            self.Qsym.r[:,n] += np.sqrt((10**(-SNR/10))/2)*(np.random.randn(self.sym_no,1) + 1j*np.random.randn(self.sym_no,1))
