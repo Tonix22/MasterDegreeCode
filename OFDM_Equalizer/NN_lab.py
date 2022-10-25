@@ -50,15 +50,15 @@ class NetLabs():
     def Generate_Network_Model(self):
         #MODEL COFING
         if(self.loss_type == "MSE"):
-            self.model  = LinearNet(input_size=2*self.N, hidden_size=4*self.N, num_classes=2*self.N)
-            #self.model    = Chann_EQ_Net(input_size=2*self.N, num_classes=2*self.N)
+            self.model  = LinearNet(input_size=2*self.N, hidden_size=2*self.N, num_classes=2*self.N)
+            #self.model = Chann_EQ_Net(input_size=2*self.N, num_classes=2*self.N)
             
         if(self.loss_type == "Entropy"):
             self.model  = LinearNet(input_size=2*self.N, hidden_size=4*self.N, num_classes=self.data.sym_no)
             
         self.model  = self.model.to(self.device)
         
-        self.optimizer = optim.Adam(self.model.parameters(),lr=.001,eps=.001)
+        self.optimizer = optim.Adam(self.model.parameters(),lr=.005,eps=.005)
         
         if(self.loss_type == "MSE"):
             #criteria based on MSE
@@ -72,7 +72,7 @@ class NetLabs():
     
     def Trainning(self):
         df = pd.DataFrame()
-        for epochs in range(0,4):
+        for epochs in range(0,2):
             for SNR in range(self.BEST_SNR,self.WORST_SNR,-1):
                 losses = []
                 self.Generate_SNR(self.data,SNR)
@@ -81,7 +81,6 @@ class NetLabs():
                 for i in loop:     
                     X  = torch.squeeze(self.r[:,i],1)  # input
                     Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
-                            
                     # Compute prediction and loss
                     pred = self.model(X.float())
                     loss = self.criterion(pred,Y.float())
@@ -186,11 +185,19 @@ class NetLabs():
 
     def Generate_SNR(self,data,SNR):
         data.AWGN(SNR)
-        r_real = torch.tensor(data.Qsym.r.real,device  = torch.device('cuda'),dtype=torch.float64)
-        r_imag = torch.tensor(data.Qsym.r.imag,device  = torch.device('cuda'),dtype=torch.float64)
+        #right side of equalizer
+        Entry = np.empty((self.data.sym_no,self.data.total,1),dtype=self.data.Qsym.r.dtype)
+        for i in range(0,self.data.total):
+            Y = data.Qsym.r[:,i]
+            H = np.matrix(data.H[:,:,i])
+            Entry[:,i]=H.H@Y
+                
+        r_real = torch.tensor(Entry.real,device  = torch.device('cuda'),dtype=torch.float64)
+        r_imag = torch.tensor(Entry.imag,device  = torch.device('cuda'),dtype=torch.float64)
         self.r = torch.cat((r_real,r_imag),0)
         del r_real
         del r_imag
+        del Entry
         torch.cuda.empty_cache()
         
     def get_time_string(self):

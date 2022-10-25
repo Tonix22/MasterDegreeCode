@@ -9,12 +9,12 @@ class LinearNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(LinearNet, self).__init__()
         self.linear1 = nn.Linear(input_size, hidden_size)
-        self.f1      = nn.ReLU()
+        self.f1      = nn.Tanh()
         #hidden Layers
         self.linear2 = nn.Linear(hidden_size, hidden_size)
-        self.f2      = nn.ReLU()
+        self.f2      = nn.Tanh()
         self.linear3 = nn.Linear(hidden_size, hidden_size)
-        self.f3      = nn.ReLU()
+        self.f3      = nn.Tanh()
         #final Layer
         self.linear4 = nn.Linear(hidden_size, num_classes) 
     

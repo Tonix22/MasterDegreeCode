@@ -17,22 +17,17 @@ class RX():
         self.Qsym.r    = np.reshape(self.Qsym.r,(self.sym_no,self.total,1))
         self.Qsym.bits = np.reshape(self.Qsym.bits,(self.sym_no,self.total,1))
         
+        self.H = np.empty((self.sym_no,self.sym_no,self.total), dtype=self.LOS.con_list.dtype)
+        self.H[:,:,0::2] = self.LOS.con_list
+        self.H[:,:,1::2] = self.NLOS.con_list
         #Collapse with channel
         self.Generate()
     
     def Generate(self):
         #Swtiching verison
         #We mixed LOS and NLOS
-        LOS_cnt  = 0
-        NLOS_cnt = 0
         for n in range (0,self.total):
-            #Get realization
-            if(n&1):
-                self.Qsym.r[:,n] = self.LOS[LOS_cnt] @ self.Qsym.GroundTruth[:,n]
-                LOS_cnt+=1
-            else:
-                self.Qsym.r[:,n] = self.NLOS[NLOS_cnt] @ self.Qsym.GroundTruth[:,n]
-                NLOS_cnt+=1               
+            self.Qsym.r[:,n] = self.H[:,:,n]@self.Qsym.GroundTruth[:,n]             
     
     def AWGN(self,SNR):
         for n in range (0,self.total):

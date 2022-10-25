@@ -31,13 +31,7 @@ for SNR in range(BEST_SNR,WORST_SNR,-5):
     for i in loop:
         #Get realization
         Y = data.Qsym.r[:,i]
-        if(i&1):
-            H = np.asmatrix(data.LOS[LOS_cnt])
-            LOS_cnt+=1
-        else:
-            H = np.asmatrix(data.NLOS[NLOS_cnt])
-            NLOS_cnt+=1
-        
+        H = np.matrix(data.H[:,:,i])
         txbits = np.squeeze(data.Qsym.bits[:,i],axis=1)
         X_hat  = Equalizer(H,Y,SNR)
         rxbits = data.Qsym.Demod(X_hat)

@@ -1,26 +1,6 @@
 clear all;
 
-folder = 'DataBasesOFDM_Channels';  % You specify this!
-
-
-fullMatFileName = fullfile(folder,  'v2v80211p_LOS.mat');
-if ~exist(fullMatFileName, 'file')
-  message = sprintf('%s does not exist', fullMatFileName);
-  uiwait(warndlg(message));
-else
-  LOS = load(fullMatFileName);
-  LOS = LOS.vectReal32b;
-end
-
-
-fullMatFileName = fullfile(folder,  'v2v80211p_NLOS.mat');
-if ~exist(fullMatFileName, 'file')
-  message = sprintf('%s does not exist', fullMatFileName);
-  uiwait(warndlg(message));
-else
-  NLOS = load(fullMatFileName);
-  NLOS = NLOS.vectReal32b;
-end
+loadmatlab;
 
 % QAM DATA
 modorder            = 4;  %constelation size
@@ -44,11 +24,13 @@ for SNR=SNRVECT
         %generar datos
         txbits    = randi([0 1],size(LOS,1)*log2(modorder),1);
         X = qammod(txbits, modorder, 'gray', 'InputType', 'bit','UnitAveragePower', true);
+        %H = fft(H,[],1)/sqrt(size(LOS,1));
+        %H = eye(size(H,1)).* diag(H);
         Y = H*X;
-        Y = Y+sqrt(10^(-SNR/20))*(randn(numel(Y),1)+1j*randn(numel(Y),1));
+        Y = Y+sqrt((10^(-SNR/10))/2)*(randn(numel(Y),1)+1j*randn(numel(Y),1));
         %H = H+sqrt(10^(-SNR/20))*(randn(size(H))+1j*randn(size(H)));
-        I = inv(H'*H)*H'*Y; %MSE
-        X_hat = H*I;
+        X_hat = inv(H'*H+eye(48)*(10^(-SNR/10)))*H'*Y; %MSE
+        %X_hat = diag(Y./H);
         rxbits = qamdemod(X_hat, modorder, 'gray', 'OutputType', 'bit','UnitAveragePower', true);
         % Calculo de Errores
         errors = sum(abs(txbits-rxbits))+errors;
@@ -60,9 +42,15 @@ for SNR=SNRVECT
     BER(SNR==SNRVECT)=errors/(numel(txbits)*frames);
 end
 
-figure
+figure1 = figure;
 semilogy(SNRVECT,BER)
 title('BER vs SNR');
+t = datetime('now');
+t.Format = 'MMM_dd_yyyy-HH_mm_ss';
+name =  strcat('plots/GolderMatlab_Ber_',string(t));
+jpg  = strcat(name,'.jpg')
+
+saveas(figure1,jpg)
 
 
 
