@@ -38,30 +38,30 @@ class Chann_EQ_Net(nn.Module):
         super(Chann_EQ_Net, self).__init__()
         self.stage1 = nn.Sequential(
                           nn.Linear(input_size, 2*int(input_size/2)**2),
-                          nn.ReLU(),
+                          nn.Tanh(),
                           nn.Unflatten(0,(1,2,int(input_size/2),int(input_size/2)))
         )
         self.linear_size = int(input_size/2)-5-11-5-11-1-5+6
         #input_size-5-1
         self.stage2 = nn.Sequential(
             nn.Conv2d(2, 4, kernel_size=5, stride=1),#48-5+1 = 44
-            nn.ReLU(),
+            nn.Tanh(),
             nn.AvgPool2d(kernel_size=11, stride=1),#43-11+1  = 34
         )
         self.stage3 = nn.Sequential(
             nn.Conv2d(4, 2, kernel_size=5, stride=1),#34-5+1 = 30
-            nn.ReLU(),
+            nn.Tanh(),
             nn.AvgPool2d(kernel_size=11, stride=1),#30-11+1  = 20
         )
         self.stage4 = nn.Sequential(
             nn.Conv2d(2, 1, kernel_size=1, stride=1),#20-1+1 = 20
-            nn.ReLU(),
+            nn.Tanh(),
             nn.AvgPool2d(kernel_size=5, stride=1),#20-5+1   = 16
         )
         self.stage5 = nn.Sequential(
             nn.Flatten(),
             nn.Linear(16*16,10*10),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(10*10,num_classes)
         )
         
