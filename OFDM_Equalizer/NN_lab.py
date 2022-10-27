@@ -6,7 +6,7 @@ import torch.optim as optim
 from   Recieved import RX
 import GPUtil
 from   tqdm import tqdm
-from   Networks import LinearNet,Chann_EQ_Net
+from   Networks import LinearNet,QAMDemod,Chann_EQ_Net
 import pandas as pd
 from datetime import datetime
 import matplotlib.pyplot as plot
@@ -39,20 +39,22 @@ class NetLabs(object):
         #MODEL COFING
         if(self.loss_type == "MSE"):
             NN  = LinearNet(input_size=self.N, hidden_size=2*self.N, num_classes=self.N)
-            #self.model = Chann_EQ_Net(input_size=2*self.N, num_classes=2*self.N)
+            #NN   = Chann_EQ_Net(input_size=self.N, num_classes=self.N)
             
         if(self.loss_type == "Entropy"):
-            NN  = LinearNet(input_size=2*self.N, hidden_size=4*self.N, num_classes=self.data.sym_no)
+            NN  = QAMDemod(input_size=2*self.N,num_classes=self.data.sym_no)
             
         NN = NN.to(self.device)
         
-        self.optimizer = optim.Adam(NN.parameters(),lr=.001,eps=.001)
+        self.optimizer = optim.Adam(NN.parameters(),lr=.0001,eps=.0001)
         
         if(self.loss_type == "MSE"):
             #criteria based on MSE
-            self.criterion = nn.MSELoss()
+            self.criterion = nn.MSELoss(reduction='sum')
+            #self.criterion = nn.L1Loss()
         if(self.loss_type == "Entropy"):
-            self.criterion = nn.CrossEntropyLoss()
+            #self.criterion = nn.CrossEntropyLoss()
+            self.criterion = nn.MSELoss()
         
         return NN        
 
@@ -107,11 +109,57 @@ class TrainNet(NetLabs):
             self.gt = torch.tensor(self.data.Qsym.bits,device = self.device,dtype=torch.float64)
     
         torch.cuda.empty_cache()
-            
-    def Train(self,epochs=3):
+    
+    def TrainQAM(self,pth_real,pth_imag,epochs=3):
+        #Load Constelation correction Models
+        Denoiser = TestNet(pth_real,pth_imag)
+        df       = pd.DataFrame()
+        for iterations in range(0,2):
+            for SNR in range(self.BEST_SNR,self.WORST_SNR,-5):
+                for epochs_range in range(0,epochs):
+                    losses = []
+                    self.r = self.Generate_SNR(SNR,"both") 
+                    #loop is the progress bar
+                    loop  = tqdm(range(0,self.training_data),desc="Progress")
+                    for i in loop:
+                        #First NET
+                        X  = torch.squeeze(self.r[:,i],1)  # input
+                        Y  = torch.squeeze(Denoiser.gt[:,i],1) # ground thruth
+                        pred_real = Denoiser.model_real(X[0:self.data.sym_no].float())
+                        pred_imag = Denoiser.model_imag(X[self.data.sym_no:].float())
+                        #DeMod
+                        #Concatenation for Constelation
+                        X  = torch.cat((pred_real,pred_imag),0)
+                        #Ground truth are constelation bits
+                        Y  = torch.from_numpy(np.squeeze(self.data.Qsym.bits[:,i],axis=1)).cuda()
+                        #Get result
+                        pred = self.model(X.float())
+                        #pred = pred[None,:]
+                        loss = self.criterion(pred,Y.float())
+                        
+                        #Record the Average loss
+                        losses.append(loss.cpu().detach().numpy())
+                        #Clear gradient
+                        self.optimizer.zero_grad()
+                        # Backpropagation
+                        loss.backward()
+                        # Update Gradient
+                        self.optimizer.step()
+                        #Status bar and monitor    
+                        if(i % 1000 == 0):
+                            loop.set_description(f"SNR [{SNR}] EPOCH[{epochs_range}]")
+                            loop.set_postfix(loss=loss.cpu().detach().numpy())
+                            print(GPUtil.showUtilization())
+                    df["SNR{}".format(SNR)]= losses
+                    losses.clear()
+        df.to_csv('reports/Train_Loss_BitsClass_{}_{}.csv'.format(self.real_imag,self.get_time_string()), header=True, index=False)
+        torch.save(self.model.state_dict(),"models/Constelation{}.pth".format(self.get_time_string()))
+                    
+                
+    def TrainMSE(self,epochs=3):
         df = pd.DataFrame()
         
-        for SNR in range(self.BEST_SNR,self.WORST_SNR,-5):
+        for SNR in range(self.BEST_SNR,self.WORST_SNR,-2):
             for epochs_range in range(0,epochs):
                 losses = []
                 self.r = self.Generate_SNR(SNR,self.real_imag)
@@ -135,7 +183,7 @@ class TrainNet(NetLabs):
                     
                     #Status bar and monitor    
                     if(i % 1000 == 0):
-                        loop.set_description(f"SNR [{SNR}] EPOCH[{epochs_range}]")
+                        loop.set_description(f"SNR [{SNR}] EPOCH[{epochs_range}] [{self.real_imag}]]")
                         loop.set_postfix(loss=loss.cpu().detach().numpy())
                         #print(GPUtil.showUtilization())
                 
@@ -148,14 +196,14 @@ class TrainNet(NetLabs):
                     
     def SaveModel(self,format):
         if(format == "PTH"):
-            torch.save(self.model.state_dict(),"models/OFDM_Equalizer{}.pth".format(self.get_time_string()))
+            torch.save(self.model.state_dict(),"models/OFDM_Equalizer_{}_{}.pth".format(self.real_imag,self.get_time_string()))
         if(format == "ONNX"):
             torch.onnx.export(self.model,self.r[:,0].float(),"models/MSE_net.onnx", export_params=True,opset_version=10)
         
     
 class TestNet(NetLabs):
-    def __init__(self,pth_real,pth_imag):
-        super().__init__()
+    def __init__(self,pth_real,pth_imag,loss_type="MSE",best_snr = 60,worst_snr = 5):
+        super().__init__(loss_type,best_snr,worst_snr)
         self.model_real = None
         self.model_imag = None
         self.model_real = self.Generate_Network_Model()
@@ -175,7 +223,11 @@ class TestNet(NetLabs):
     #************************
     #*******TESTING**********
     #************************
-    def Test(self):
+    def TestQAM(self,pth):
+        self.loss_type="Entropy"
+        demod = self.Generate_Network_Model()
+        demod.load_state_dict(torch.load(pth))
+        
         df = pd.DataFrame()
         BER    = []
         
@@ -185,6 +237,69 @@ class TestNet(NetLabs):
             loop   = tqdm(range(self.training_data,self.data.total),desc="Progress")
             errors = 0
             
+            for i in loop:
+                
+                X  = torch.squeeze(self.r[:,i],1)  # input
+                Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
+                
+                pred_real = self.model_real(X[0:self.data.sym_no].float())
+                pred_imag = self.model_imag(X[self.data.sym_no:].float())
+                
+                #Concatenation for Constelation
+                X  = torch.cat((pred_real,pred_imag),0)
+                #Ground truth are constelation bits
+                txbits = np.squeeze(self.data.Qsym.bits[:,i],axis=1)
+                Y      = torch.from_numpy(txbits).cuda()
+                
+                pred = demod(X.float()) 
+                loss = self.criterion(pred,Y.float())
+                losses.append(loss.cpu().detach().numpy())
+                #BER
+                rxbits = pred.cpu().detach().numpy() 
+                rxbits = rxbits.astype(np.uint8)
+                
+                errors+=np.unpackbits((txbits^rxbits).view('uint8')).sum()
+                                
+                #Status bar and monitor  
+                if(i % 500 == 0):
+                    loop.set_description(f"SNR [{SNR}]")
+                    loop.set_postfix(loss=torch.mean(loss).cpu().detach().numpy())
+                    loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*self.data.total))
+                    print(GPUtil.showUtilization())
+                    
+            #Apend report to data frame
+            df["SNR{}".format(SNR)]= losses
+            losses.clear()
+            
+            #Calculate BER
+            BER.append(errors/((self.data.bitsframe*self.data.sym_no)*self.data.total))
+        
+        
+        str_time = self.get_time_string()
+        df.to_csv('reports/Testing_Loss_SNR{}.csv'.format(str_time), header=True, index=False)
+        
+        indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,)
+        BER = np.asarray(BER)
+        plot.grid(True, which ="both")
+        plot.semilogy(indexValues,BER)
+        plot.title('SNR and BER')
+        # Give x axis label for the semilogy plot
+        plot.xlabel('SNR')
+        # Give y axis label for the semilogy plot
+        plot.ylabel('BER')
+        plot.savefig('plots/Test_BER_SNR{}.png'.format(str_time))
+        
+    
+    def Test(self):
+        df = pd.DataFrame()
+        BER    = []
+        
+        for SNR in range(self.BEST_SNR,self.WORST_SNR,-1):
+            losses = []
+            self.r = self.Generate_SNR(SNR,"both")
+            loop   = tqdm(range(self.training_data,self.data.total),desc="Progress")
+            errors = 0
+            frames = self.data.total-self.training_data
             for i in loop:
                 
                 X  = torch.squeeze(self.r[:,i],1)  # input
@@ -215,7 +330,7 @@ class TestNet(NetLabs):
                 if(i % 500 == 0):
                     loop.set_description(f"SNR [{SNR}]")
                     loop.set_postfix(loss=torch.mean(loss).cpu().detach().numpy())
-                    loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*self.data.total))
+                    loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*frames))
                     print(GPUtil.showUtilization())
                     
             #Apend report to data frame
@@ -223,7 +338,7 @@ class TestNet(NetLabs):
             losses.clear()
             
             #Calculate BER
-            BER.append(errors/((self.data.bitsframe*self.data.sym_no)*self.data.total))
+            BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
         
         
         str_time = self.get_time_string()
