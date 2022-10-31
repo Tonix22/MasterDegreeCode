@@ -9,38 +9,34 @@ from torch.autograd import Variable
 class Linear_concat(nn.Module):
     def __init__(self, input_size,hidden_size):
         super(Linear_concat, self).__init__()
-        fading1 = int(hidden_size*.7)
-        self.real = nn.Sequential
-        (
+        self.fading1 = int(hidden_size*.7)
+        self.real_stage = nn.Sequential(
             nn.Linear(input_size, hidden_size),
             nn.Tanh(),
             nn.Linear(hidden_size, hidden_size),
             nn.Tanh(),
-            nn.Linear(fading1, input_size)
+            nn.Linear(hidden_size, input_size),
+            nn.Tanh()
         )
-        self.imag = nn.Sequential
-        (
+        self.imag_stage = nn.Sequential(
             nn.Linear(input_size, hidden_size),
             nn.Tanh(),
             nn.Linear(hidden_size, hidden_size),
             nn.Tanh(),
-            nn.Linear(fading1, input_size)
+            nn.Linear(hidden_size, input_size),
+            nn.Tanh()
         )
-        self.QPSK = nn.Sequential
-        (
-            nn.Linear(input_size*2, int(input_size*1.8)),
+        self.QPSK = nn.Sequential(
+            nn.Linear(input_size*2, int(input_size*1.5)),
             nn.ReLU(),
-            nn.Linear(int(input_size*1.8), int(input_size*1.6)),
+            nn.Linear(int(input_size*1.5), int(input_size)),
             nn.ReLU(),
-            nn.Linear(int(input_size*1.4), int(input_size*1.2)),
-            nn.ReLU(),
-            nn.Linear(int(input_size*1.2), int(input_size)),
         )
         
     def forward(self, x1, x2):
-        out1 = self.real(x1)
-        out2 = self.imag(x2)
-        out  = torch.cat((out1,out2),1)
+        out1 = self.real_stage(x1)
+        out2 = self.imag_stage(x2)
+        out  = torch.cat((out1,out2))
         out  = self.QPSK(out)
         return out
         
@@ -48,32 +44,37 @@ class Linear_concat(nn.Module):
 class LinearNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(LinearNet, self).__init__()
-        fading1 = int(hidden_size*.7)
-        self.linear1 = nn.Linear(input_size, hidden_size)
+        fading1 = int(input_size*.7)
+        fading2 = int(input_size*1.4)
+        self.denoiser = nn.Sequential(
+            nn.Linear(input_size, hidden_size),
+            nn.Tanh(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.Tanh(),
+            nn.Linear(hidden_size, input_size),
+            nn.Tanh(),
+            nn.Linear(input_size, num_classes),
+            nn.Tanh()
+        )
+        """
+        self.linear1 = 
         self.f1      = nn.Tanh()
         #hidden Layers
-        self.linear2 = nn.Linear(hidden_size, hidden_size)
+        self.linear2 = nn.Linear(fading1, fading2)
         self.f2      = nn.Tanh()
-        self.linear3 = nn.Linear(hidden_size, fading1)
-        self.f3      = nn.Tanh()
+        self.linear3 = nn.Linear(fading2, fading3)
+        self.f3      = nn.ReLU()
         #final Layer
-        self.linear4 = nn.Linear(fading1, num_classes)
+        self.linear4 = nn.Linear(fading3, num_classes)
         self.f4      = nn.Tanh()
+        #final Layer
+        self.linear4 = nn.Linear(fading3, num_classes)
+        self.f4      = nn.Tanh()
+        """
     
     def forward(self, x):
         #Input
-        out = self.linear1(x)
-        out = self.f1(out)
-        #Hidden
-        out = self.linear2(out)
-        out = self.f2(out)
-        
-        out = self.linear3(out)
-        out = self.f3(out)
-        #Final 
-        out = self.linear4(out)
-        out = self.f4(out)
-        return out
+        return self.denoiser(x)
 
 
 class QAMDemod(nn.Module):

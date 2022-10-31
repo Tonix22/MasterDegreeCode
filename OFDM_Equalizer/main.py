@@ -9,20 +9,24 @@ TRAIN_MSE_IMAG = 1
 TEST_MSE       = 2
 TRAIN_EQ       = 3
 TEST_EQ        = 4
+TRAIN_COMPLETE = 5
+TEST_COMPLETE  = 6
 
-BEST_SNR   = 35
-WORST_SNR  = 5
-EPOCHS     = 5
+BEST_SNR   = 30
+WORST_SNR  = 15
+EPOCHS     = 2
 
-pth1 = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/models/OFDM_Equalizer_imag_-27_10_2022-12_54.pth"
-pth2 = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/models/OFDM_Equalizer_real_-27_10_2022-12_54.pth"
+pth_complete = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/models/OFDM_Equalizer_both_-28_10_2022-11_20.pth"
+pth1 = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/models/OFDM_Eq_SNR_(30_25)_(real)_-29_10_2022-14_20.pth"
+pth2 = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/models/OFDM_Eq_SNR_(30_25)_(imag)_-29_10_2022-14_21.pth"
 pth_QAM = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/models/Constelation-26_10_2022-16_49.pth"
+
 
 def Motor(event):
     
     if(event == TEST_MSE):
         print("testing")
-        TN = TestNet(pth1,pth2)
+        TN = TestNet(pth_real = pth1,pth_imag = pth2,best_snr=BEST_SNR,worst_snr=WORST_SNR)
         TN.Test()
 
     if(event == TRAIN_MSE_REAL):
@@ -36,11 +40,18 @@ def Motor(event):
         
     if(event == TRAIN_EQ):
         Demod = TrainNet(loss_type="Entropy",best_snr=BEST_SNR,worst_snr=WORST_SNR)
-        Demod.TrainQAM(pth1,pth2,epochs=EPOCHS)
+        Demod.TrainQAM(epochs=EPOCHS)
         
     if(event == TEST_EQ):
-        TN = TestNet(pth1,pth2)
+        TN = TestNet(pth_real = pth1, pth_imag = pth2)
         TN.TestQAM(pth_QAM)
+        
+    if(event == TRAIN_COMPLETE):
+        Complete = TrainNet(real_imag="both",loss_type="MSE_complete",best_snr=BEST_SNR,worst_snr=WORST_SNR)
+        Complete.TrainMSE(epochs=EPOCHS)
+    if(event == TEST_COMPLETE):
+        TN = TestNet(path = pth_complete,loss_type="MSE_complete",best_snr=40,worst_snr=5)
+        TN.TestQAM()
 
 if __name__ == '__main__':
     if(sys.argv[1] == "trainMSE_Real"):
@@ -53,3 +64,7 @@ if __name__ == '__main__':
         Motor(TRAIN_EQ)
     if(sys.argv[1]=="testEq"):
         Motor(TEST_EQ)
+    if(sys.argv[1]=="train_complete"):   
+        Motor(TRAIN_COMPLETE)
+    if(sys.argv[1]=="test_complete"):   
+        Motor(TEST_COMPLETE)
