@@ -48,29 +48,12 @@ class LinearNet(nn.Module):
         fading2 = int(input_size*1.4)
         self.denoiser = nn.Sequential(
             nn.Linear(input_size, hidden_size),
-            nn.Tanh(),
+            nn.Hardtanh(),
             nn.Linear(hidden_size, hidden_size),
-            nn.Tanh(),
             nn.Linear(hidden_size, input_size),
-            nn.Tanh(),
+            nn.Hardtanh(),
             nn.Linear(input_size, num_classes),
-            nn.Tanh()
         )
-        """
-        self.linear1 = 
-        self.f1      = nn.Tanh()
-        #hidden Layers
-        self.linear2 = nn.Linear(fading1, fading2)
-        self.f2      = nn.Tanh()
-        self.linear3 = nn.Linear(fading2, fading3)
-        self.f3      = nn.ReLU()
-        #final Layer
-        self.linear4 = nn.Linear(fading3, num_classes)
-        self.f4      = nn.Tanh()
-        #final Layer
-        self.linear4 = nn.Linear(fading3, num_classes)
-        self.f4      = nn.Tanh()
-        """
     
     def forward(self, x):
         #Input
