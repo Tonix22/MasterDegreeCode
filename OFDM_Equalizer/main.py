@@ -28,7 +28,7 @@ def Motor(event):
         phase.TrainMSE(epochs=EPOCHS)
     #Inv
     if(event == TRAIN_MSE_INV):
-        inv = TrainNet(real_imag=BOTH,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR)
+        inv = TrainNet(real_imag=INV,loss_type=MSE_INV,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=STEP_SNR)
         inv.TraiINV(epochs=EPOCHS)
     
     #TEST     

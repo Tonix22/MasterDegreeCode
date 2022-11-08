@@ -64,20 +64,22 @@ class Inverse_Net(nn.Module):
     
     def __init__(self, input_size):
         super(Inverse_Net, self).__init__()
+        self.double()
         self.matrix_size = input_size
         self.stage1 = nn.Sequential(
             #(2,48,48)
             #input_size//4 = 12
-            nn.Conv2d(2, 4, kernel_size=input_size//8,padding='same'),#no compress
+            nn.Conv2d(2, 4, kernel_size=input_size//8+1,padding='same'),#no compress
             nn.Hardtanh(),
             nn.ConvTranspose2d(4,4,kernel_size=input_size//8),# (4,54,54) , + 6 
             nn.ConvTranspose2d(4,4,kernel_size=input_size//8),# (4,60,60) , + 6
             nn.Hardtanh(),
-            nn.Conv2d(4, 4, kernel_size=input_size//8),# (2,54,54)
+            nn.Conv2d(4, 4, kernel_size=input_size//8-3),# (2,54,54)
             nn.Hardtanh(),
-            nn.Conv2d(4, 2, kernel_size=input_size//4),# (4,48,48)
+            nn.Conv2d(4, 2, kernel_size=input_size//4-3),# (4,48,48)
             nn.Hardtanh(),
-        )
+        ).double()
+        
         
     def forward(self,inv_inside):
         out = self.stage1(inv_inside)#pseudoinverse

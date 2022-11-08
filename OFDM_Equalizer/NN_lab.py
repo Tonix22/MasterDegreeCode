@@ -67,7 +67,9 @@ class NetLabs(object):
         
         self.optimizer = optim.Adam(NN.parameters(),lr=LEARNING_RATE,eps=EPSILON)
         
-        if(self.loss_type == MSE or self.loss_type == MSE_INV):
+        if(self.loss_type == MSE_INV):
+            self.criterion = nn.MSELoss().double()
+        if(self.loss_type == MSE):
             self.criterion = nn.MSELoss()
             #self.criterion = nn.L1Loss()
         if(self.loss_type == MSE_COMPLETE):
@@ -128,7 +130,12 @@ class NetLabs(object):
             del gt_real
             del gt_imag
             
-                          
+        if(self.real_imag == INV):
+        
+            channels = np.concatenate((Truth.real,Truth.imag),axis=0)
+            channels = np.reshape(channels,(2,self.data.sym_no,self.data.total))
+            gt       = torch.from_numpy(channels).to(self.device)
+            
         torch.cuda.empty_cache()
         return gt
 

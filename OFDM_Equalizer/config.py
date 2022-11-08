@@ -12,7 +12,8 @@ pth_abs    = base + "OFDM_Eq_SNR_(40_5)_(ABS)_-1_11_2022-15_46.pth"
 
 
 BEST_SNR   = 40
-WORST_SNR  = 5
-EPOCHS     = 5
-LEARNING_RATE = .0001
-EPSILON = .0001
+WORST_SNR  = 4
+STEP_SNR   = -5
+EPOCHS     = 1
+LEARNING_RATE = .001
+EPSILON = .001

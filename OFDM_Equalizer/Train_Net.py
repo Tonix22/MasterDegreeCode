@@ -37,7 +37,7 @@ class TrainNet(NetLabs):
             return torch.from_numpy(np.abs(LMMSE)).to(self.device)
         if(self.real_imag == INV):
             channels = np.concatenate((LMMSE.real,LMMSE.imag),axis=0)
-            channels = np.reshape(channels,(2,self.data.sym_no,self.data.sym_no))
+            channels = np.reshape(channels,(2,self.data.sym_no))
             return torch.from_numpy(channels).to(self.device)
             
                                             
@@ -113,7 +113,8 @@ class TrainNet(NetLabs):
         toogle_iter = 1
         if(self.toggle == True):
             toogle_iter = 2
-        
+            
+        torch.set_default_dtype(torch.float64)
         for it in range(0,toogle_iter):# 2 if toggle required
             for SNR in range(self.BEST_SNR,self.WORST_SNR,self.step):
                 for epochs_range in range(0,epochs):
@@ -121,20 +122,23 @@ class TrainNet(NetLabs):
                     #loop is the progress bar
                     loop  = tqdm(range(0,self.training_data),desc="Progress")
                     for i in loop:
-                        GT  = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1)
+                        #GT  = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1)
+                        GT   = torch.squeeze(self.gt[:,:,i])
                         
                         #input parameters
                         self.data.AWGN(SNR)
                         Y   = self.data.Qsym.r[:,i]
                         H   = np.matrix(self.data.H[:,:,i])
-                        P   = ((H.H@H+np.eye(self.matrix_size)*(10**(-SNR/10))))
+                        P   = ((H.H@H+np.eye(self.data.sym_no)*(10**(-SNR/10))))
                         #separate H in 2 channels
                         P_chann = np.concatenate((P.real,P.imag),axis=0)
+                        P_chann = P_chann.A1
                         P_chann = np.reshape(P_chann,(2,self.data.sym_no,self.data.sym_no))
                         #separate H.H@Y
                         RightSide = H.H@Y
                         RightSide = np.concatenate((RightSide.real,RightSide.imag),axis=0)
-                        RightSide = np.reshape(RightSide,(2,self.data.sym_no,self.data.sym_no))
+                        RightSide = RightSide.A1
+                        RightSide = np.reshape(RightSide,(2,self.data.sym_no))
                         
                         #Convert to torch CUDA vector
                         P_chann   = torch.from_numpy(P_chann).to(self.device)
@@ -143,18 +147,17 @@ class TrainNet(NetLabs):
                         inverse = self.model(P_chann)
                         #(a+bi)(c+di)
                         #(ac-bd)+i(ad+bc)
-                        a = inverse[:,:,0]
-                        b = inverse[:,:,1]
-                        c = RightSide[:,:,0]
-                        d = RightSide[:,:,1]
+                        a = inverse[0]
+                        b = inverse[1]
+                        c = RightSide[0]#real
+                        d = RightSide[1]#imag
                         
-                        X_hat = torch.zeros(2,self.data.sym_no,1)
-                        X_hat[:,:,0]   = a@c-b@d
-                        X_hat[:,:,1]   = a@d-b@c
+                        X_hat = torch.zeros(2,self.data.sym_no).to(self.device)
+                        X_hat[0]   = a@c-b@d
+                        X_hat[1]   = a@d+b@c
                         
-                        loss = self.criterion(X_hat,GT.float())
-                            
-                            
+                        loss = self.criterion(X_hat,GT)
+                             
                         #Record the Average loss
                         losses.append(loss.cpu().detach().numpy())
                         #Clear gradient
@@ -165,7 +168,7 @@ class TrainNet(NetLabs):
                         self.optimizer.step()
                         
                         #Status bar and monitor    
-                        if(i % 1000 == 0):
+                        if(i % 50 == 0):
                             loop.set_description(f"SNR [{SNR}] EPOCH[{epochs_range}] [{real_imag_str[self.real_imag]}]]")
                             loop.set_postfix(loss=loss.cpu().detach().numpy())
                             #print(GPUtil.showUtilization())
