@@ -13,6 +13,7 @@ import matplotlib.pyplot as plot
 class TestNet(NetLabs):
     def __init__(self,path = None,pth_real=None,pth_imag=None,loss_type=MSE,best_snr = 60,worst_snr = 5):
         super().__init__(loss_type,best_snr,worst_snr)
+        self.real_imag = None
         if(loss_type == MSE_COMPLETE):
             self.model = self.Generate_Network_Model()
             self.model.load_state_dict(torch.load(path))
@@ -29,6 +30,7 @@ class TestNet(NetLabs):
         if(self.loss_type == CROSSENTROPY or self.loss_type == MSE_COMPLETE):
             self.gt = self.Get_ground_truth(self.data.Qsym.bits)
         else:
+            self.real_imag = BOTH
             self.gt = self.Get_ground_truth(self.data.Qsym.GroundTruth)
         
     #************************
@@ -59,7 +61,8 @@ class TestNet(NetLabs):
                 loss = self.criterion(pred,Y.float())
                 losses.append(loss.cpu().detach().numpy())
                 #BER
-                rxbits = pred.cpu().detach().numpy()*3
+                rxbits = pred.cpu().detach().numpy()
+                rxbits = rxbits*3
                 rxbits = np.around(rxbits)
                 rxbits = rxbits.astype(np.uint8)
                 errors += ((txbits^rxbits)&1).sum()+((txbits^rxbits)&2>>1).sum()
@@ -82,9 +85,10 @@ class TestNet(NetLabs):
         formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,self.get_time_string())
         df.to_csv('reports/Test_BER_{}.csv'.format(formating), header=True, index=False)
         
-        indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,)
+        indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,5)
         BER = np.asarray(BER)
-        plot.grid(True, which =BOTH)
+        BER = np.flip(BER)
+        plot.grid(True, which ="both")
         plot.semilogy(indexValues,BER)
         plot.title('SNR and BER')
         # Give x axis label for the semilogy plot
@@ -151,7 +155,7 @@ class TestNet(NetLabs):
         indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,2)
         BER = np.asarray(BER)
         BER = np.flip(BER)
-        plot.grid(True, which =BOTH)
+        plot.grid(True, which ="both")
         plot.semilogy(indexValues,BER)
         plot.title('SNR and BER')
         # Give x axis label for the semilogy plot
@@ -186,10 +190,10 @@ class TestNet_Angle_Phase(NetLabs):
             self.r_abs   = self.Generate_SNR(SNR,ABS)
             self.r_angle = self.Generate_SNR(SNR,ANGLE)
             
-            loop   = tqdm(range(self.training_data,self.data.total),desc="Progress")
+            loop   = tqdm(range(0,self.data.total),desc="Progress")
             errors = 0
             passed = 0
-            frames = self.data.total-self.training_data # self.training_data
+            frames = self.data.total # self.training_data
             for i in loop:
                 
                 X_ang  = torch.squeeze(self.r_angle[:,i],1)  # input

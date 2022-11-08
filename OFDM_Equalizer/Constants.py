@@ -21,13 +21,15 @@ IMAG  = 1
 BOTH  = 2
 ABS   = 3
 ANGLE = 4
+INV   = 5
 
 real_imag_str = {
     REAL : "REAL", 
     IMAG : "IMAG", 
     BOTH : "BOTH", 
     ABS  : "ABS",  
-    ANGLE : "ANGLE"
+    ANGLE : "ANGLE",
+    INV   : "LMSE"
 }
 
 #loss_type
@@ -35,7 +37,8 @@ real_imag_str = {
 MSE = 0
 CROSSENTROPY = 1
 MSE_COMPLETE = 2
-CUSTOM = 3
+MSE_INV = 3
+CUSTOM = 4
 
 #GET Y 
 GET_TOGGLE = 0

@@ -18,6 +18,7 @@ def get_time_string():
 
 def Equalizer(H,Y,SNR):
     return np.linalg.inv(H.H@H+np.eye(48)*(10**(-SNR/10)))@H.H@Y
+    #return np.linalg.inv(H.H@H)@H.H@Y
 
 data = RX()
 BER    = []

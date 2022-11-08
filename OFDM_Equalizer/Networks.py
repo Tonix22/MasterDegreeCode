@@ -11,26 +11,27 @@ class Linear_concat(nn.Module):
         super(Linear_concat, self).__init__()
         self.fading1 = int(hidden_size*.7)
         self.real_stage = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.Tanh(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.Tanh(),
-            nn.Linear(hidden_size, input_size),
-            nn.Tanh()
+            nn.Linear(input_size, hidden_size,bias=True),
+            nn.Hardtanh(),
+            nn.Linear(hidden_size, hidden_size,bias=True),
+            nn.Linear(hidden_size, input_size,bias=True),
+            nn.Hardtanh(),
+            nn.Linear(input_size, input_size,bias=True),
         )
         self.imag_stage = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.Tanh(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.Tanh(),
-            nn.Linear(hidden_size, input_size),
-            nn.Tanh()
+            nn.Linear(input_size, hidden_size,bias=True),
+            nn.Hardtanh(),
+            nn.Linear(hidden_size, hidden_size,bias=True),
+            nn.Linear(hidden_size, input_size,bias=True),
+            nn.Hardtanh(),
+            nn.Linear(input_size, input_size,bias=True),
         )
         self.QPSK = nn.Sequential(
-            nn.Linear(input_size*2, int(input_size*1.5)),
-            nn.ReLU(),
+            nn.Linear(input_size*2, int(input_size*1.7)),
+            nn.LeakyReLU(0.1),
+            nn.Linear(int(input_size*1.7), int(input_size*1.5)),
+            nn.LeakyReLU(0.1),
             nn.Linear(int(input_size*1.5), int(input_size)),
-            nn.ReLU(),
         )
         
     def forward(self, x1, x2):
@@ -44,15 +45,14 @@ class Linear_concat(nn.Module):
 class LinearNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(LinearNet, self).__init__()
-        fading1 = int(input_size*.7)
-        fading2 = int(input_size*1.4)
         self.denoiser = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
+            nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.Linear(hidden_size, input_size),
+            nn.Linear(hidden_size, hidden_size,bias=True),
+            nn.Linear(hidden_size, input_size,bias=True),
+            nn.Tanh(),
+            nn.Linear(input_size, num_classes,bias=True),
             nn.Hardtanh(),
-            nn.Linear(input_size, num_classes),
         )
     
     def forward(self, x):
@@ -60,68 +60,25 @@ class LinearNet(nn.Module):
         return self.denoiser(x)
 
 
-class QAMDemod(nn.Module):
-    def __init__(self, input_size, num_classes):
-        super(QAMDemod, self).__init__()
-        fading1 = int(input_size*.8)
-        fading2 = int(input_size*.6)
-        self.linear1 = nn.Linear(input_size, fading1)
-        self.f1 = nn.ReLU()
-        # hidden Layers
-        self.linear2 = nn.Linear(fading1, fading2)
-        self.f2 = nn.ReLU()
-        # final Layer
-        self.linear3 = nn.Linear(fading2, num_classes)
-
-    def forward(self, x):
-        # Input
-        out = self.linear1(x)
-        out = self.f1(out)
-        # Hidden
-        out = self.linear2(out)
-        out = self.f2(out)
-        # Final
-        out = self.linear3(out)
-        return out
-
-class Chann_EQ_Net(nn.Module):
+class Inverse_Net(nn.Module):
     
-    def __init__(self, input_size, num_classes):
-        super(Chann_EQ_Net, self).__init__()
+    def __init__(self, input_size):
+        super(Inverse_Net, self).__init__()
+        self.matrix_size = input_size
         self.stage1 = nn.Sequential(
-                          nn.Linear(input_size, input_size**2),
-                          nn.Tanh(),
-                          nn.Unflatten(0,(1,1,input_size,input_size))
-        )
-        self.linear_size = int(input_size/2)-5-11-5-11-1-5+6
-        #input_size-5-1
-        self.stage2 = nn.Sequential(
-            nn.Conv2d(1, 2, kernel_size=5, stride=1),#48-5+1 = 44
-            nn.Tanh(),
-            nn.AvgPool2d(kernel_size=11, stride=1),#43-11+1  = 34
-        )
-        self.stage3 = nn.Sequential(
-            nn.Conv2d(2, 1, kernel_size=5, stride=1),#34-5+1 = 30
-            nn.Tanh(),
-            nn.AvgPool2d(kernel_size=11, stride=1),#30-11+1  = 20
-        )
-        self.stage4 = nn.Sequential(
-            nn.Conv2d(1, 1, kernel_size=1, stride=1),#20-1+1 = 20
-            nn.Tanh(),
-            nn.AvgPool2d(kernel_size=5, stride=1),#20-5+1    = 16
-        )
-        self.stage5 = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(16*16,10*10),
-            nn.Tanh(),
-            nn.Linear(10*10,num_classes)
+            #(2,48,48)
+            #input_size//4 = 12
+            nn.Conv2d(2, 4, kernel_size=input_size//8,padding='same'),#no compress
+            nn.Hardtanh(),
+            nn.ConvTranspose2d(4,4,kernel_size=input_size//8),# (4,54,54) , + 6 
+            nn.ConvTranspose2d(4,4,kernel_size=input_size//8),# (4,60,60) , + 6
+            nn.Hardtanh(),
+            nn.Conv2d(4, 4, kernel_size=input_size//8),# (2,54,54)
+            nn.Hardtanh(),
+            nn.Conv2d(4, 2, kernel_size=input_size//4),# (4,48,48)
+            nn.Hardtanh(),
         )
         
-        
-    def forward(self, x):
-        out = self.stage1(x)
-        out = self.stage2(out)
-        out = self.stage3(out)
-        out = self.stage4(out)
-        out = self.stage5(out)
+    def forward(self,inv_inside):
+        out = self.stage1(inv_inside)#pseudoinverse
         return torch.squeeze(out)

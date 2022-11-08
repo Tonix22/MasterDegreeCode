@@ -35,6 +35,10 @@ class TrainNet(NetLabs):
             return torch.from_numpy(np.angle(LMMSE)/pi).to(self.device)
         if(self.real_imag == ABS):
             return torch.from_numpy(np.abs(LMMSE)).to(self.device)
+        if(self.real_imag == INV):
+            channels = np.concatenate((LMMSE.real,LMMSE.imag),axis=0)
+            channels = np.reshape(channels,(2,self.data.sym_no,self.data.sym_no))
+            return torch.from_numpy(channels).to(self.device)
             
                                             
     def TrainMSE(self,epochs=3):
@@ -55,7 +59,7 @@ class TrainNet(NetLabs):
                         X  = torch.squeeze(self.r[:,i],1)  # input
                         Y  = None
                         if(self.toggle == True):
-                            if(it %2 == 1):
+                            if(epochs_range%2 == 0):
                                 Y  = torch.squeeze(self.gt[:,i],1)
                             else:
                                 Y  = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1)
@@ -102,4 +106,74 @@ class TrainNet(NetLabs):
             torch.save(self.model.state_dict(),"models/OFDM_Eq_{}.pth".format(formating))
         if(format == "ONNX"):
             torch.onnx.export(self.model,self.r[:,0].float(),"models/MSE_net.onnx", export_params=True,opset_version=10)
+    
+    def TraiINV(self,epochs=3):
+        df   = pd.DataFrame()
+        pred = None
+        toogle_iter = 1
+        if(self.toggle == True):
+            toogle_iter = 2
         
+        for it in range(0,toogle_iter):# 2 if toggle required
+            for SNR in range(self.BEST_SNR,self.WORST_SNR,self.step):
+                for epochs_range in range(0,epochs):
+                    losses = []                
+                    #loop is the progress bar
+                    loop  = tqdm(range(0,self.training_data),desc="Progress")
+                    for i in loop:
+                        GT  = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1)
+                        
+                        #input parameters
+                        self.data.AWGN(SNR)
+                        Y   = self.data.Qsym.r[:,i]
+                        H   = np.matrix(self.data.H[:,:,i])
+                        P   = ((H.H@H+np.eye(self.matrix_size)*(10**(-SNR/10))))
+                        #separate H in 2 channels
+                        P_chann = np.concatenate((P.real,P.imag),axis=0)
+                        P_chann = np.reshape(P_chann,(2,self.data.sym_no,self.data.sym_no))
+                        #separate H.H@Y
+                        RightSide = H.H@Y
+                        RightSide = np.concatenate((RightSide.real,RightSide.imag),axis=0)
+                        RightSide = np.reshape(RightSide,(2,self.data.sym_no,self.data.sym_no))
+                        
+                        #Convert to torch CUDA vector
+                        P_chann   = torch.from_numpy(P_chann).to(self.device)
+                        RightSide = torch.from_numpy(RightSide).to(self.device)
+        
+                        inverse = self.model(P_chann)
+                        #(a+bi)(c+di)
+                        #(ac-bd)+i(ad+bc)
+                        a = inverse[:,:,0]
+                        b = inverse[:,:,1]
+                        c = RightSide[:,:,0]
+                        d = RightSide[:,:,1]
+                        
+                        X_hat = torch.zeros(2,self.data.sym_no,1)
+                        X_hat[:,:,0]   = a@c-b@d
+                        X_hat[:,:,1]   = a@d-b@c
+                        
+                        loss = self.criterion(X_hat,GT.float())
+                            
+                            
+                        #Record the Average loss
+                        losses.append(loss.cpu().detach().numpy())
+                        #Clear gradient
+                        self.optimizer.zero_grad()
+                        # Backpropagation
+                        loss.backward()
+                        # Update Gradient
+                        self.optimizer.step()
+                        
+                        #Status bar and monitor    
+                        if(i % 1000 == 0):
+                            loop.set_description(f"SNR [{SNR}] EPOCH[{epochs_range}] [{real_imag_str[self.real_imag]}]]")
+                            loop.set_postfix(loss=loss.cpu().detach().numpy())
+                            #print(GPUtil.showUtilization())
+                    
+                    df["SNR{}".format(SNR)]= losses
+                    losses.clear()
+            
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],self.get_time_string())
+        df.to_csv('reports/Train_{}.csv'.format(formating), header=True, index=False)
+        
+        self.SaveModel("PTH",formating)

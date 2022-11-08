@@ -8,11 +8,11 @@ def Motor(event):
     #Train
     #Real
     if(event == TRAIN_MSE_REAL):
-        real_net = TrainNet(real_imag=REAL,best_snr=BEST_SNR,worst_snr=WORST_SNR)
+        real_net = TrainNet(real_imag=REAL,best_snr=BEST_SNR,worst_snr=WORST_SNR,toggle=True,step=-5)
         real_net.TrainMSE(epochs=EPOCHS)
     #Imag
     if(event == TRAIN_MSE_IMAG):   
-        imag_net = TrainNet(real_imag=IMAG,best_snr=BEST_SNR,worst_snr=WORST_SNR)
+        imag_net = TrainNet(real_imag=IMAG,best_snr=BEST_SNR,worst_snr=WORST_SNR,toggle=True,step=-5)
         imag_net.TrainMSE(epochs=EPOCHS)
     #Complete
     if(event == TRAIN_COMPLETE):
@@ -20,16 +20,16 @@ def Motor(event):
         Complete.TrainMSE(epochs=EPOCHS)
     #Magnitud
     if(event == TRAIN_MSE_MAG):
-        magnitud = TrainNet(real_imag=ABS,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR)
+        magnitud = TrainNet(real_imag=ABS,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=-5)
         magnitud.TrainMSE(epochs=EPOCHS)
     #Phase
     if(event == TRAIN_MSE_PHASE):
-        phase = TrainNet(real_imag=ANGLE,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR,toggle=True,step=-2)
+        phase = TrainNet(real_imag=ANGLE,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR,toggle=True,step=-5)
         phase.TrainMSE(epochs=EPOCHS)
     #Inv
     if(event == TRAIN_MSE_INV):
         inv = TrainNet(real_imag=BOTH,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR)
-        inv.TrainMSE(epochs=EPOCHS)
+        inv.TraiINV(epochs=EPOCHS)
     
     #TEST     
     if(event == TEST_MSE):
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     if(sys.argv[1]=="train_complete"):   
         Motor(TRAIN_COMPLETE)
     #PSEUDOINVERSE
-    if(sys.argv[1] == "trainMSE_PseudoInverse"):
+    if(sys.argv[1] == "trainMSE_INV"):
         Motor(TRAIN_MSE_INV)      
     
     #***** TEST ******
@@ -82,5 +82,5 @@ if __name__ == '__main__':
         Motor(TEST_COMPLETE)
     
     #Test Pseudoinverse
-    if(sys.argv[1]=="test_complete"):   
+    if(sys.argv[1]=="test_inv"):   
         Motor(TEST_MSE_INV)

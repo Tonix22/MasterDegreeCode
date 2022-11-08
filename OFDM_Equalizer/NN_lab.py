@@ -5,7 +5,7 @@ import numpy as np
 import torch.optim as optim
 from   Recieved import RX
 from   tqdm import tqdm
-from   Networks import QAMDemod,Chann_EQ_Net,Linear_concat,LinearNet
+from   Networks import Inverse_Net,Linear_concat,LinearNet
 import pandas as pd
 from datetime import datetime
 
@@ -55,19 +55,19 @@ class NetLabs(object):
         NN = None
         #MODEL COFING
         if(self.loss_type == MSE):
-            NN  = LinearNet(input_size=self.N, hidden_size=2*self.N, num_classes=self.N)
-            
-        if(self.loss_type == CROSSENTROPY):
-            NN  = QAMDemod(input_size=2*self.N,num_classes=self.data.sym_no)
-            
+            NN  = LinearNet(input_size=self.N, hidden_size=3*self.N, num_classes=self.N)
+        
         if(self.loss_type == MSE_COMPLETE):
-            NN  = Linear_concat(input_size=self.N,hidden_size=2*self.N)
+            NN  = Linear_concat(input_size=self.N,hidden_size=3*self.N)
+
+        if(self.loss_type == MSE_INV):
+            NN = Inverse_Net(input_size=self.N)
                 
         NN = NN.to(self.device)
         
         self.optimizer = optim.Adam(NN.parameters(),lr=LEARNING_RATE,eps=EPSILON)
         
-        if(self.loss_type == MSE):
+        if(self.loss_type == MSE or self.loss_type == MSE_INV):
             self.criterion = nn.MSELoss()
             #self.criterion = nn.L1Loss()
         if(self.loss_type == MSE_COMPLETE):
@@ -124,9 +124,10 @@ class NetLabs(object):
         if(self.real_imag==BOTH and self.loss_type == MSE):#pseudoinverse or test 
             gt_real = torch.tensor(Truth.real,device = self.device,dtype=torch.float64)
             gt_imag = torch.tensor(Truth.imag,device = self.device,dtype=torch.float64)
-            gt      = torch.cat((self.gt_real,self.gt_imag),0)
-            del self.gt_real
-            del self.gt_imag
+            gt      = torch.cat((gt_real,gt_imag),0)
+            del gt_real
+            del gt_imag
+            
                           
         torch.cuda.empty_cache()
         return gt
