@@ -5,7 +5,7 @@ import numpy as np
 import torch.optim as optim
 from   Recieved import RX
 from   tqdm import tqdm
-from   Networks import Inverse_Net,Linear_concat,LinearNet
+from   Networks import Inverse_Net,Linear_concat,LinearNet,ResNet,ResidualBlock
 import pandas as pd
 from datetime import datetime
 
@@ -62,6 +62,7 @@ class NetLabs(object):
 
         if(self.loss_type == MSE_INV):
             NN = Inverse_Net(input_size=self.N)
+            NN = ResNet(ResidualBlock, [2, 4, 6, 2],num_classes=self.N).double()
                 
         NN = NN.to(self.device)
         

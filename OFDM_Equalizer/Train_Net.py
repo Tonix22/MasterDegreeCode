@@ -168,7 +168,7 @@ class TrainNet(NetLabs):
                         self.optimizer.step()
                         
                         #Status bar and monitor    
-                        if(i % 50 == 0):
+                        if(i % 10 == 0):
                             loop.set_description(f"SNR [{SNR}] EPOCH[{epochs_range}] [{real_imag_str[self.real_imag]}]]")
                             loop.set_postfix(loss=loss.cpu().detach().numpy())
                             #print(GPUtil.showUtilization())

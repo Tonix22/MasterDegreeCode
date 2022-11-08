@@ -32,3 +32,27 @@ class RX():
     def AWGN(self,SNR):
         for n in range (0,self.total):
             self.Qsym.r[:,n] += np.sqrt((10**(-SNR/10))/2)*(np.random.randn(self.sym_no,1) + 1j*np.random.randn(self.sym_no,1))
+
+"""
+import numpy as np
+import seaborn as sn
+import matplotlib.pyplot as plt
+# generating 2D matrix of random numbers between 10 and 100
+data = RX()
+
+SNR = 20
+H   = np.matrix(data.H[:,:,0])
+Y   = data.Qsym.r[:,0]
+
+inside = np.linalg.inv(H.H@H+np.eye(48)*(10**(-SNR/10)))
+inv    = np.linalg.inv(inside)@H.H@Y
+
+#diag = np.diagonal(inv,offset=0)
+#row_sum = np.sum(inv[0])
+#print(diag[0])
+#print(row_sum)
+hm = sn.heatmap(data = inside.real)
+
+# Heatmap Display
+plt.savefig('plots/heatmap_real_inverted.jpg')
+"""

@@ -17,8 +17,14 @@ def get_time_string():
     return "-{}_{}_{}-{}_{}".format(day,mon,year,hr,mn)
 
 def Equalizer(H,Y,SNR):
-    return np.linalg.inv(H.H@H+np.eye(48)*(10**(-SNR/10)))@H.H@Y
-    #return np.linalg.inv(H.H@H)@H.H@Y
+    inside = H.H@H+np.eye(48)*(10**(-SNR/10))
+    left   = np.append(np.diagonal(inside,offset=-1),[0])
+    right  = np.append(np.diagonal(inside,offset= 1),[0])
+    center = np.diagonal(inside)
+    power  = left+right+center
+    power  = np.expand_dims(power, axis=1)
+    return  (H.H@Y)/power
+    #return np.linalg.inv(H.H@H+np.eye(48)*(10**(-SNR/10)))@H.H@Y
 
 data = RX()
 BER    = []
@@ -36,6 +42,7 @@ for SNR in range(BEST_SNR,WORST_SNR,-5):
         txbits = np.squeeze(data.Qsym.bits[:,i],axis=1)
         X_hat  = Equalizer(H,Y,SNR)
         rxbits = data.Qsym.Demod(X_hat)
+
         errors+=np.unpackbits((txbits^rxbits).view('uint8')).sum()
         
         #Status bar and monitor  
