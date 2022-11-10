@@ -55,7 +55,7 @@ class NetLabs(object):
         NN = None
         #MODEL COFING
         if(self.loss_type == MSE):
-            NN  = LinearNet(input_size=self.N, hidden_size=3*self.N, num_classes=self.N)
+            NN  = LinearNet(input_size=self.N, hidden_size=2*self.N).double()
         
         if(self.loss_type == MSE_COMPLETE):
             NN  = Linear_concat(input_size=self.N,hidden_size=3*self.N)
@@ -90,10 +90,10 @@ class NetLabs(object):
         for i in range(0,self.data.total):
             Y = self.data.Qsym.r[:,i]
             H = np.matrix(self.data.H[:,:,i])
-            Entry[:,i]=H.H@Y
+            Entry[:,i]=H.H@Y+(10**(-SNR/10))
         
-        r_real = torch.tensor(Entry.real,device  = torch.device('cuda'),dtype=torch.float64)
-        r_imag = torch.tensor(Entry.imag,device  = torch.device('cuda'),dtype=torch.float64)
+        r_real = torch.tensor(Entry.real,device  = torch.device(self.device),dtype=torch.float64)
+        r_imag = torch.tensor(Entry.imag,device  = torch.device(self.device),dtype=torch.float64)
         if(real_imag == REAL):      
            r = r_real
         if(real_imag == IMAG):
@@ -101,9 +101,9 @@ class NetLabs(object):
         if(real_imag == BOTH):
             r = torch.cat((r_real,r_imag),0)
         if(real_imag == ABS):
-            r = torch.tensor(np.abs(Entry),device  = torch.device('cuda'),dtype=torch.float64)
+            r = torch.tensor(np.abs(Entry),device  = torch.device(self.device),dtype=torch.float64)
         if(real_imag == ANGLE):
-            r = torch.tensor(np.angle(Entry)/pi,device  = torch.device('cuda'),dtype=torch.float64)   
+            r = torch.tensor(np.angle(Entry)/pi,device  = torch.device(self.device),dtype=torch.float64)   
         del Entry
         torch.cuda.empty_cache()
         return r

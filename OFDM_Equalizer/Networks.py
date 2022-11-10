@@ -1,4 +1,3 @@
-from sympy import init_printing
 import torch
 from math import sqrt
 import torch.nn as nn
@@ -43,20 +42,36 @@ class Linear_concat(nn.Module):
         
 
 class LinearNet(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
+    def __init__(self, input_size, hidden_size):
         super(LinearNet, self).__init__()
+        
         self.denoiser = nn.Sequential(
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, hidden_size,bias=True),
-            nn.Linear(hidden_size, input_size,bias=True),
-            nn.Tanh(),
-            nn.Linear(input_size, num_classes,bias=True),
+            nn.Linear(hidden_size, hidden_size*2,bias=True),
+            nn.Hardtanh(),
+            nn.Linear(hidden_size*2, input_size,bias=True),
+            nn.Linear(input_size, input_size,bias=True),
             nn.Hardtanh(),
         )
+        """
+        self.denoiser = nn.Sequential(
+            nn.Hardtanh(),
+            nn.Linear(input_size, hidden_size,bias=True),
+            nn.Linear(hidden_size, hidden_size*2,bias=True),
+            nn.Linear(hidden_size*2, hidden_size*4,bias=True),
+            nn.Hardtanh(),
+            nn.Linear(hidden_size*4, hidden_size*2,bias=True),
+            nn.Hardtanh(),
+            nn.Linear(hidden_size*2, input_size,bias=True),
+            nn.Hardtanh(),
+        )
+        """
     
-    def forward(self, x):
-        #Input
+    def forward(self, x,SNR):
+        #out = self.denoiser(x)
+        #out +=x/(10**(-SNR/10))
+        #out = self.denoiser(out)
         return self.denoiser(x)
 
 

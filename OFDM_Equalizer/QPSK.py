@@ -44,11 +44,14 @@ class QPSK():
             elif(angle > 90 and angle <=180):
                 bits.append(1)#01
             #Third Quadrant
-            elif(angle > -180 and angle < -90):
+            elif(angle >= -180 and angle < -90):
                 bits.append(0)#00
             #Fourth quadrant
             elif(angle > -90 and angle < 0):
                 bits.append(2)#10
+            else:
+                print("error")
+                print(angle)
                 
         return np.asarray(bits)      
         

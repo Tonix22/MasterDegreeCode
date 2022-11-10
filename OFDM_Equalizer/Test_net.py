@@ -6,7 +6,7 @@ import numpy as np
 from Constants import *
 import pandas as pd
 from  tqdm import tqdm
-import GPUtil
+#import GPUtil
 import matplotlib.pyplot as plot
 
 
@@ -72,7 +72,7 @@ class TestNet(NetLabs):
                     loop.set_description(f"SNR [{SNR}]")
                     loop.set_postfix(loss=torch.mean(loss).cpu().detach().numpy())
                     loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*frames))
-                    print(GPUtil.showUtilization())
+                    #print(GPUtil.showUtilization())
                     
             #Apend report to data frame
             Ber_DF = errors/((self.data.bitsframe*self.data.sym_no)*frames)
@@ -166,19 +166,19 @@ class TestNet(NetLabs):
         
         
 class TestNet_Angle_Phase(NetLabs):
-    def __init__(self,pth_angle,pth_mag,loss_type=MSE,best_snr = 60,worst_snr = 5,step = -1):
+    def __init__(self,pth_angle,pth_mag,loss_type=MSE,best_snr = 35,worst_snr = 5,step = -1):
         super().__init__(loss_type,best_snr,worst_snr,step=step)
         
         self.model_angle = self.Generate_Network_Model()
-        self.model_mag   = self.Generate_Network_Model()
+        #self.model_mag   = self.Generate_Network_Model()
         self.model_angle.load_state_dict(torch.load(pth_angle))
-        self.model_mag.load_state_dict(torch.load(pth_mag))
+        #self.model_mag.load_state_dict(torch.load(pth_mag))
         #angle
         self.real_imag = ANGLE
         self.gt_angle = self.Get_ground_truth(self.data.Qsym.GroundTruth)
         #Mag
-        self.real_imag = ABS
-        self.gt_abs = self.Get_ground_truth(self.data.Qsym.GroundTruth)
+        #self.real_imag = ABS
+        #self.gt_abs = self.Get_ground_truth(self.data.Qsym.GroundTruth)
         
     def Test(self):
         df  = pd.DataFrame()
@@ -187,7 +187,7 @@ class TestNet_Angle_Phase(NetLabs):
         for SNR in range(self.BEST_SNR,self.WORST_SNR,self.step):
             losses = []
             
-            self.r_abs   = self.Generate_SNR(SNR,ABS)
+            #self.r_abs   = self.Generate_SNR(SNR,ABS)
             self.r_angle = self.Generate_SNR(SNR,ANGLE)
             
             loop   = tqdm(range(0,self.data.total),desc="Progress")
@@ -197,25 +197,25 @@ class TestNet_Angle_Phase(NetLabs):
             for i in loop:
                 
                 X_ang  = torch.squeeze(self.r_angle[:,i],1)  # input
-                X_abs  = torch.squeeze(self.r_abs[:,i],1) 
+                #X_abs  = torch.squeeze(self.r_abs[:,i],1) 
                 Y_angle  = torch.squeeze(self.gt_angle[:,i],1) # ground thruth
-                Y_mag    = torch.squeeze(self.gt_abs[:,i],1)
+                #Y_mag    = torch.squeeze(self.gt_abs[:,i],1)
                 
-                pred_ang = self.model_angle(X_ang.float())
-                pred_abs = self.model_mag(X_abs.float())
+                pred_ang = self.model_angle(X_ang,SNR)
+                #pred_abs = self.model_mag(X_abs)
                                 
                 loss_ang = self.criterion(pred_ang,Y_angle.float())
-                loss_abs = self.criterion(pred_abs,Y_mag.float())
+                #loss_abs = self.criterion(pred_abs,Y_mag.float())
                 
-                loss = (loss_ang + loss_abs)/2
+                #loss = (loss_ang + loss_abs)/2
 
-                losses.append(loss.cpu().detach().numpy())
+                losses.append(loss_ang.cpu().detach().numpy())
                 
 
                 pred_ang = pred_ang*pi
                 theta    = pred_ang.cpu().detach().numpy()
-                radius   = pred_abs.cpu().detach().numpy()
-                res      = radius*np.exp(1j*theta)
+                #radius   = pred_abs.cpu().detach().numpy()
+                res      = .7*np.exp(1j*theta)
                 rxbits   = self.data.Qsym.Demod(res)
 
                 txbits = np.squeeze(self.data.Qsym.bits[:,i],axis=1)

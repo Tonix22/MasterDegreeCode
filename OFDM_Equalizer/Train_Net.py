@@ -64,7 +64,8 @@ class TrainNet(NetLabs):
                             else:
                                 Y  = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1)
                         else:    
-                            Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
+                            #Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
+                            Y   = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1) 
                             
                         if(self.loss_type == MSE_COMPLETE):
                             a = X[0:self.data.sym_no].float()
@@ -73,8 +74,8 @@ class TrainNet(NetLabs):
                             Y    = Y/3 #normalize constelation points
                             loss = self.criterion(pred,Y.float())
                         else:
-                            pred = self.model(X.float())
-                            loss = self.criterion(pred,Y.float())
+                            pred = self.model(X,SNR)
+                            loss = self.criterion(pred,Y)
                             
                             
                         #Record the Average loss

@@ -4,8 +4,8 @@ from   tqdm import tqdm
 import matplotlib.pyplot as plot
 from datetime import datetime
 
-BEST_SNR = 50
-WORST_SNR = 5
+BEST_SNR = 40
+WORST_SNR = 4
 
 def get_time_string():
     current_time = datetime.now()
@@ -23,7 +23,7 @@ def Equalizer(H,Y,SNR):
 data = RX()
 BER    = []
 
-for SNR in range(BEST_SNR,WORST_SNR,-5):
+for SNR in range(BEST_SNR,WORST_SNR,-2):
     loop   = tqdm(range(0,data.total),desc="Progress")
     errors = 0
     LOS_cnt  = 0
@@ -47,7 +47,7 @@ for SNR in range(BEST_SNR,WORST_SNR,-5):
     BER.append(errors/((data.bitsframe*data.sym_no)*data.total))
     
     
-indexValues = np.arange(WORST_SNR,BEST_SNR,5)
+indexValues = np.arange(WORST_SNR,BEST_SNR,2)
 BER = np.asarray(BER)
 BER = np.flip(BER)
 plot.grid(True, which ="both")
