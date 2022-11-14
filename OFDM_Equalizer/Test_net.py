@@ -114,11 +114,11 @@ class TestNet(NetLabs):
                 X  = torch.squeeze(self.r[:,i],1)  # input
                 Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
                 
-                pred_real = self.model_real(X[0:self.data.sym_no].float())
-                pred_imag = self.model_imag(X[self.data.sym_no:].float())
+                pred_real = self.model_real(X[0:self.data.sym_no],SNR)
+                pred_imag = self.model_imag(X[self.data.sym_no:],SNR)
                                 
-                loss_real = self.criterion(pred_real,Y[0:self.data.sym_no].float())
-                loss_imag = self.criterion(pred_imag,Y[self.data.sym_no:].float())
+                loss_real = self.criterion(pred_real,Y[0:self.data.sym_no])
+                loss_imag = self.criterion(pred_imag,Y[self.data.sym_no:])
                 
                 loss = (loss_real + loss_imag)/2
 

@@ -8,11 +8,11 @@ def Motor(event):
     #Train
     #Real
     if(event == TRAIN_MSE_REAL):
-        real_net = TrainNet(real_imag=REAL,best_snr=BEST_SNR,worst_snr=WORST_SNR,toggle=True,step=-5)
+        real_net = TrainNet(real_imag=REAL,best_snr=BEST_SNR,worst_snr=WORST_SNR,toggle=True,step=STEP_SNR)
         real_net.TrainMSE(epochs=EPOCHS)
     #Imag
     if(event == TRAIN_MSE_IMAG):   
-        imag_net = TrainNet(real_imag=IMAG,best_snr=BEST_SNR,worst_snr=WORST_SNR,toggle=True,step=-5)
+        imag_net = TrainNet(real_imag=IMAG,best_snr=BEST_SNR,worst_snr=WORST_SNR,toggle=True,step=STEP_SNR)
         imag_net.TrainMSE(epochs=EPOCHS)
     #Complete
     if(event == TRAIN_COMPLETE):
