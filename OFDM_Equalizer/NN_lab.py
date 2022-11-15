@@ -90,7 +90,8 @@ class NetLabs(object):
         for i in range(0,self.data.total):
             Y = self.data.Qsym.r[:,i]
             H = np.matrix(self.data.H[:,:,i])
-            Entry[:,i]=H.H@Y+(10**(-SNR/10))
+            Entry[:,i]=H.H@Y
+        
         
         r_real = torch.tensor(Entry.real,device  = torch.device(self.device),dtype=torch.float64)
         r_imag = torch.tensor(Entry.imag,device  = torch.device(self.device),dtype=torch.float64)

@@ -9,7 +9,7 @@ class Channel():
         #This class convert mat file into numpy 
         Mat = None
         import os
-        directory_path = "/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/Data"
+        directory_path = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/Data"
         if(LOS):
             Mat = scipy.io.loadmat("{}/{}".format(directory_path,'v2v80211p_LOS.mat'))
         else:

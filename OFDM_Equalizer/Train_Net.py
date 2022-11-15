@@ -10,6 +10,7 @@ from  tqdm import tqdm
 class TrainNet(NetLabs):
     def __init__(self,real_imag = REAL,loss_type=MSE,toggle = False,best_snr = 60,worst_snr = 5,step=-1):
         super().__init__(loss_type,best_snr,worst_snr,toggle=toggle,step=step)
+        print("device = {}".format(self.device))
         #NN model
         self.model = None 
         #Constant Paramters
@@ -49,7 +50,7 @@ class TrainNet(NetLabs):
             toogle_iter = 2
         
         for it in range(0,toogle_iter):# 2 if toggle required
-            for SNR in range(self.BEST_SNR,self.WORST_SNR,self.step):
+            for SNR in range(self.BEST_SNR,self.WORST_SNR-1,self.step):
                 for epochs_range in range(0,epochs):
                     losses = []
                     self.r = self.Generate_SNR(SNR,self.real_imag)

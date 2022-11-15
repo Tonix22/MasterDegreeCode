@@ -43,7 +43,7 @@ def Motor(event):
         
     #Magnitud Phase
     if(event == TEST_POLAR):
-        TN = TestNet_Angle_Phase(pth_angle,pth_abs,best_snr=BEST_SNR,worst_snr=WORST_SNR)
+        TN = TestNet_Angle_Phase(pth_angle,pth_abs)
         TN.Test()
 
 if __name__ == '__main__':

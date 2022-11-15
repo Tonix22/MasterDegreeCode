@@ -8,6 +8,8 @@ import pandas as pd
 from  tqdm import tqdm
 #import GPUtil
 import matplotlib.pyplot as plot
+from utils import vector_to_pandas
+from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
 
 
 class TestNet(NetLabs):
@@ -166,8 +168,8 @@ class TestNet(NetLabs):
         
         
 class TestNet_Angle_Phase(NetLabs):
-    def __init__(self,pth_angle,pth_mag,loss_type=MSE,best_snr = 35,worst_snr = 5,step = -1):
-        super().__init__(loss_type,best_snr,worst_snr,step=step)
+    def __init__(self,pth_angle,pth_mag,loss_type=MSE):
+        super().__init__(loss_type,GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,step=GOLDEN_STEP)
         
         self.model_angle = self.Generate_Network_Model()
         #self.model_mag   = self.Generate_Network_Model()
@@ -184,7 +186,7 @@ class TestNet_Angle_Phase(NetLabs):
         df  = pd.DataFrame()
         BER = []
         
-        for SNR in range(self.BEST_SNR,self.WORST_SNR,self.step):
+        for SNR in range(self.BEST_SNR,self.WORST_SNR-1,-1*self.step):
             losses = []
             
             #self.r_abs   = self.Generate_SNR(SNR,ABS)
@@ -238,15 +240,5 @@ class TestNet_Angle_Phase(NetLabs):
         formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],self.get_time_string())
         df.to_csv('reports/Testing_Loss_{}.csv'.format(formating), header=True, index=False)
         
-        indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,self.step*-1)
-        BER = np.asarray(BER)
-        BER = np.flip(BER)
-        plot.grid(True, which ="both")
-        plot.semilogy(indexValues,BER)
-        plot.title('SNR and BER')
-        # Give x axis label for the semilogy plot
-        plot.xlabel('SNR')
-        # Give y axis label for the semilogy plot
-        plot.ylabel('BER')
-        plot.savefig('plots/Test_BER_{}.png'.format(formating))
+        vector_to_pandas("BER_{}.csv".format(formating),BER)
                 
