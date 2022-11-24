@@ -30,15 +30,6 @@ class NetLabs(object):
         #Training data lenght is only 80%
         self.training_data = int(self.data.total*.8)
         self.toggle = toggle
-        
-    def get_time_string(self):
-        current_time = datetime.now()
-        day  = current_time.day
-        mon  = current_time.month
-        year = current_time.year
-        hr   = current_time.time().hour
-        mn   = current_time.time().minute
-        return "-{}_{}_{}-{}_{}".format(day,mon,year,hr,mn)
     
     def BER_LOS(self,output,target):
         #discrete = output.type('torch.CharTensor').to(self.device)
@@ -55,7 +46,7 @@ class NetLabs(object):
         NN = None
         #MODEL COFING
         if(self.loss_type == MSE):
-            NN  = LinearNet(input_size=self.N, hidden_size=2*self.N).double()
+            NN  = LinearNet(input_size=self.N, hidden_size=int(self.N*1.5)).double()
         
         if(self.loss_type == MSE_COMPLETE):
             NN  = Linear_concat(input_size=self.N,hidden_size=3*self.N)

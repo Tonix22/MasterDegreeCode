@@ -6,6 +6,7 @@ import numpy as np
 from Constants import *
 import pandas as pd
 from  tqdm import tqdm
+from utils import get_time_string
 
 class TrainNet(NetLabs):
     def __init__(self,real_imag = REAL,loss_type=MSE,toggle = False,best_snr = 60,worst_snr = 5,step=-1):
@@ -65,8 +66,8 @@ class TrainNet(NetLabs):
                             else:
                                 Y  = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1)
                         else:    
-                            #Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
-                            Y   = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1) 
+                            Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
+                            #Y   = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1) 
                             
                         if(self.loss_type == MSE_COMPLETE):
                             a = X[0:self.data.sym_no].float()
@@ -97,7 +98,7 @@ class TrainNet(NetLabs):
                     df["SNR{}".format(SNR)]= losses
                     losses.clear()
             
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],self.get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_time_string())
         df.to_csv('reports/Train_{}.csv'.format(formating), header=True, index=False)
         
         self.SaveModel("PTH",formating)
@@ -178,7 +179,7 @@ class TrainNet(NetLabs):
                     df["SNR{}".format(SNR)]= losses
                     losses.clear()
             
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],self.get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_time_string())
         df.to_csv('reports/Train_{}.csv'.format(formating), header=True, index=False)
         
         self.SaveModel("PTH",formating)

@@ -10,7 +10,7 @@ from  tqdm import tqdm
 import matplotlib.pyplot as plot
 from utils import vector_to_pandas
 from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
-
+from utils import get_time_string
 
 class TestNet(NetLabs):
     def __init__(self,path = None,pth_real=None,pth_imag=None,loss_type=MSE,best_snr = 60,worst_snr = 5):
@@ -84,7 +84,7 @@ class TestNet(NetLabs):
             #Calculate BER
             BER.append(Ber_DF)
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,self.get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,get_time_string())
         df.to_csv('reports/Test_BER_{}.csv'.format(formating), header=True, index=False)
         
         indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,5)
@@ -151,7 +151,7 @@ class TestNet(NetLabs):
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
         
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,self.get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,get_time_string())
         df.to_csv('reports/Testing_Loss_{}.csv'.format(formating), header=True, index=False)
         
         indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,2)
@@ -237,7 +237,7 @@ class TestNet_Angle_Phase(NetLabs):
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
         
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],self.get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],get_time_string())
         df.to_csv('reports/Testing_Loss_{}.csv'.format(formating), header=True, index=False)
         
         vector_to_pandas("BER_{}.csv".format(formating),BER)

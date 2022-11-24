@@ -46,12 +46,11 @@ class LinearNet(nn.Module):
         super(LinearNet, self).__init__()
         
         self.denoiser = nn.Sequential(
+            nn.Hardtanh(),
             nn.Linear(input_size, hidden_size,bias=True),
+            nn.Linear(hidden_size, hidden_size*int(1.5),bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, hidden_size*2,bias=True),
-            nn.Hardtanh(),
-            nn.Linear(hidden_size*2, input_size,bias=True),
-            nn.Linear(input_size, input_size,bias=True),
+            nn.Linear(hidden_size*int(1.5), input_size,bias=True),
             nn.Hardtanh(),
         )
         """

@@ -1,12 +1,10 @@
 import numpy as np
 import pandas as pd
-from config import Test_PAHT
+from config import Test_PAHT, src
 import matplotlib.pyplot as plot
 from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP, PLOTS_PATH
 from datetime import datetime
-
-
-
+    
 def get_time_string():
     current_time = datetime.now()
     day  = current_time.day
@@ -26,7 +24,6 @@ def read_plot_pandas(BER_list,labels):
         plot.semilogy(indexValues,BER, label= labels[index])
         index+=1
     
-        
     plot.legend()  
     plot.title('SNR and BER')
     # Give x axis label for the semilogy plot
