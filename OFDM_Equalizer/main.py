@@ -16,7 +16,7 @@ def Motor(event):
         imag_net.TrainMSE(epochs=EPOCHS)
     #Complete
     if(event == TRAIN_COMPLETE):
-        Complete = TrainNet(real_imag=BOTH,loss_type=MSE_COMPLETE,best_snr=BEST_SNR,worst_snr=WORST_SNR)
+        Complete = TrainNet(real_imag=BOTH,loss_type=MSE_COMPLETE,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=STEP_SNR)
         Complete.TrainMSE(epochs=EPOCHS)
     #Magnitud
     if(event == TRAIN_MSE_MAG):
@@ -34,11 +34,11 @@ def Motor(event):
     #TEST     
     if(event == TEST_MSE):
         print("testing")
-        TN = TestNet(pth_real = pth1,pth_imag = pth2,best_snr=BEST_SNR,worst_snr=WORST_SNR)
+        TN = TestNet(pth_real = pth1,pth_imag = pth2)
         TN.Test()
 
     if(event == TEST_COMPLETE):
-        TN = TestNet(path = pth_complete,loss_type=MSE_COMPLETE,best_snr=40,worst_snr=5)
+        TN = TestNet(path = pth_complete,loss_type=MSE_COMPLETE)
         TN.TestQAM()
         
     #Magnitud Phase

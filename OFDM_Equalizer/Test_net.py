@@ -13,8 +13,8 @@ from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
 from utils import get_time_string
 
 class TestNet(NetLabs):
-    def __init__(self,path = None,pth_real=None,pth_imag=None,loss_type=MSE,best_snr = 60,worst_snr = 5):
-        super().__init__(loss_type,best_snr,worst_snr)
+    def __init__(self,path = None,pth_real=None,pth_imag=None,loss_type=MSE):
+        super().__init__(loss_type,GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,step=GOLDEN_STEP)
         self.real_imag = None
         if(loss_type == MSE_COMPLETE):
             self.model = self.Generate_Network_Model()
@@ -34,7 +34,7 @@ class TestNet(NetLabs):
         else:
             self.real_imag = BOTH
             self.gt = self.Get_ground_truth(self.data.Qsym.GroundTruth)
-        
+    
     #************************
     #*******TESTING**********
     #************************
@@ -44,7 +44,7 @@ class TestNet(NetLabs):
         df = pd.DataFrame()
         BER    = []
         
-        for SNR in range(self.BEST_SNR,self.WORST_SNR,-5):
+        for SNR in range(self.BEST_SNR,self.WORST_SNR-1,-1*self.step):
             losses = []
             self.r = self.Generate_SNR(SNR,BOTH)
             loop   = tqdm(range(0,self.data.total),desc="Progress")
@@ -65,10 +65,10 @@ class TestNet(NetLabs):
                 #BER
                 rxbits = pred.cpu().detach().numpy()
                 rxbits = rxbits*3
-                rxbits = np.around(rxbits)
+                #rxbits = np.around(rxbits)
                 rxbits = rxbits.astype(np.uint8)
-                errors += ((txbits^rxbits)&1).sum()+((txbits^rxbits)&2>>1).sum()
-                                
+                #errors += ((txbits^rxbits)&1).sum()+((txbits^rxbits)&2>>1).sum()
+                errors+=np.unpackbits((txbits^rxbits).view('uint8')).sum()
                 #Status bar and monitor  
                 if(i % 500 == 0):
                     loop.set_description(f"SNR [{SNR}]")
@@ -84,27 +84,14 @@ class TestNet(NetLabs):
             #Calculate BER
             BER.append(Ber_DF)
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],get_time_string())
         df.to_csv('reports/Test_BER_{}.csv'.format(formating), header=True, index=False)
-        
-        indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,5)
-        BER = np.asarray(BER)
-        BER = np.flip(BER)
-        plot.grid(True, which ="both")
-        plot.semilogy(indexValues,BER)
-        plot.title('SNR and BER')
-        # Give x axis label for the semilogy plot
-        plot.xlabel('SNR')
-        # Give y axis label for the semilogy plot
-        plot.ylabel('BER')
-        plot.savefig('plots/Test_BER_{}.png'.format(formating))
-        
+        vector_to_pandas("BER_{}.csv".format(formating),BER)
     
     def Test(self):
         df = pd.DataFrame()
         BER    = []
-        
-        for SNR in range(self.BEST_SNR,self.WORST_SNR,-2):
+        for SNR in range(self.BEST_SNR,self.WORST_SNR-1,-1*self.step):
             losses = []
             self.r = self.Generate_SNR(SNR,BOTH)
             loop   = tqdm(range(0,self.data.total),desc="Progress")
@@ -153,18 +140,7 @@ class TestNet(NetLabs):
         
         formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,get_time_string())
         df.to_csv('reports/Testing_Loss_{}.csv'.format(formating), header=True, index=False)
-        
-        indexValues = np.arange(self.WORST_SNR,self.BEST_SNR,2)
-        BER = np.asarray(BER)
-        BER = np.flip(BER)
-        plot.grid(True, which ="both")
-        plot.semilogy(indexValues,BER)
-        plot.title('SNR and BER')
-        # Give x axis label for the semilogy plot
-        plot.xlabel('SNR')
-        # Give y axis label for the semilogy plot
-        plot.ylabel('BER')
-        plot.savefig('plots/Test_BER_{}.png'.format(formating))
+        vector_to_pandas("BER_{}.csv".format(formating),BER)
         
         
 class TestNet_Angle_Phase(NetLabs):
