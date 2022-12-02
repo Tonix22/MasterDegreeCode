@@ -1,23 +1,20 @@
 import sys
 import os
 #TODO
-#path = os.getcwd()
-# adding Folder_2 to the system path
-#sys.path.insert(0, "{}/{}".format(path,"../"))
 
-#path = "/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/plots"
-path = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/plots"
-sys.path.insert(0, "{}/{}".format(path,"../"))
+main_path  = os.path.dirname(os.path.abspath(__file__))+"/../"
+utils_path = main_path+"tools"
+Test_path  = main_path+"Test"
+sys.path.insert(0, utils_path)
+
 from utils import read_plot_pandas
 
-Test_path = "{}/{}".format(path,"../Test")
+Month = "December/"
+Test_path = Test_path+"/"+Month
 
-#base_Test = "/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/Test/"
-base_Test = "/home/tonix/HardDisk/Documents/Maestria/Tesis/MasterDegreeCode/OFDM_Equalizer/Test/"
+paths = [Test_path+"BER_SNR_(45_5)_(BOTH)_-2_12_2022-11_46.csv",
+         Test_path+"Golden_LMSE_BER_SNR-2_12_2022-11_43.csv"]
 
-paths = [base_Test+"Golden_LMSE_BER_SNR-14_11_2022-22_19.csv",
-        base_Test+"Testing_Loss_SNR_(45_40)_(BOTH)_-2_12_2022-0_21"]
-
-labels = ["LMMSE","NN_Phase","NN_Two_R_I","Reg Tree Help"]
+labels = ["LMMSE","NN_Phase"]
 
 read_plot_pandas(paths,labels)
