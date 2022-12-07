@@ -187,7 +187,6 @@ class TestNet_Angle_Phase(NetLabs):
                 X_ang  = torch.squeeze(self.r_angle[:,i],1)  # input
                 #X_abs  = torch.squeeze(self.r_abs[:,i],1) 
                 Y_angle  = torch.squeeze(self.gt_angle[:,i],1) # ground thruth
-                #Y_mag    = torch.squeeze(self.gt_abs[:,i],1)
                 
                 pred_ang = self.model_angle(X_ang,SNR)
                 #pred_abs = self.model_mag(X_abs)

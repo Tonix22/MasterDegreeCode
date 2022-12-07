@@ -1,22 +1,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from QAM_arrays import QAM_dict
+from math import sqrt
 
-
-class QPSK():
-    def __init__(self,num_symbols, noise = False, noise_power = 0.05):
-        np.random.seed(42)#fixed bits
-        self.bits       = np.random.randint(0,4,num_symbols)
-        phase_noise = 0
-        gray_pos    = [225,135,315,45]
-        x_degrees   = []
-        for n in self.bits:
-            x_degrees.append(gray_pos[n])
-        x_degrees = np.asarray(x_degrees)   
-        x_radians = x_degrees*np.pi/180
-        # this produces our QPSK complex symbols
-        self.GroundTruth = np.cos(x_radians) + 1j*np.sin(x_radians)
-
+class QAM():
+    #const_type : Data, Unit_Pow, Norm
+    def __init__(self,num_symbols,constelation=4,cont_type= "Data", noise = False, noise_power = 0.05):
+        
+        #check valid input values
+        if(constelation!=4 and constelation!=16 and constelation!=32 and constelation!=64):
+            raise ValueError("Enter valid constelation size: 4,6,16,32")
+        if(cont_type!="Data" and cont_type!="Unit_Pow" and cont_type!="Norm"):
+            raise ValueError("Enter valid constelation type: Data,Unit_Pow,Norm")
+        
+        #constelation size
+        self.constelation = constelation
+        #get QAM array
+        self.QAM_N_arr = QAM_dict[cont_type][constelation]
+        #fixed random seed
+        np.random.seed(42)
+        #Generate N bits
+        self.bits   = np.random.randint(0,self.constelation,num_symbols)
+        #This array will collect true conteslation bits complex plane points
+        self.GroundTruth = np.zeros(self.bits.size,dtype=complex)
+        
+        for n in range(0,self.bits.size):
+            self.GroundTruth[n] = self.QAM_N_arr[self.bits[n]]
+        
+        #noise config or not
         if(noise == True):
+            phase_noise = 0
             noise_power = 0.05
             #AWGN with unity power
             n = (np.random.randn(num_symbols) + 1j*np.random.randn(num_symbols))/np.sqrt(2)
@@ -31,7 +44,18 @@ class QPSK():
         self.GroundTruth = np.expand_dims(self.GroundTruth,axis=1)
         self.r = np.expand_dims(self.r,axis=1)
     
-    
+    def DemodUpgrade(self,vect):
+        bits  = []
+        IQ_defect  = np.asarray(vect)
+        for IQ in np.nditer(IQ_defect):
+            distances = np.zeros(self.QAM_N_arr.size)
+            for n in range(0,self.QAM_N_arr.size):
+                Block_angle = self.QAM_N_arr[n]
+                distances[n]= sqrt((IQ.real-Block_angle.real)**2+(IQ.imag-Block_angle.imag)**2)
+            bits.append(np.argmin(distances))
+
+        return np.asarray(bits)   
+            
     def Demod(self,vect):
         angle = None
         bits  = []

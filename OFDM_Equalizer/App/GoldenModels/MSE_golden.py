@@ -12,7 +12,7 @@ from Recieved import RX
 from utils import vector_to_pandas ,get_time_string
 from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
 
-data = RX()
+data = RX(4,"Unit_Pow")
 BER    = []
 
 def LMSE(H,Y,SNR):
@@ -46,7 +46,7 @@ if __name__ == '__main__':
             
             X_hat  = EqType[Select](H,Y,SNR)
             
-            rxbits = data.Qsym.Demod(X_hat)
+            rxbits = data.Qsym.DemodUpgrade(X_hat)
             errors+=np.unpackbits((txbits^rxbits).view('uint8')).sum()
             
             #Status bar and monitor  

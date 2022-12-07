@@ -13,7 +13,7 @@ pth1         = base + "OFDM_Eq_SNR_(45_25)_(REAL)_-25_11_2022-19_48.pth"
 pth2         = base + "OFDM_Eq_SNR_(45_25)_(IMAG)_-25_11_2022-19_48.pth"
 pth_QAM      = base + "Constelation-26_10_2022-16_49.pth"
 
-pth_angle  = base + "OFDM_Eq_SNR_(45_24)_(ANGLE)_-2_12_2022-0_11.pth"
+pth_angle  = base + "OFDM_Eq_SNR_(45_24)_(ANGLE)_-7_12_2022-10_4.pth"
 pth_abs    = base + "OFDM_Eq_SNR_(40_15)_(ABS)_-9_11_2022-15_37.pth"
 
 

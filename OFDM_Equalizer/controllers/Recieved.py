@@ -1,16 +1,17 @@
 from Channel import Channel
-from QPSK import QPSK
+from QAM_mod import QAM
 import numpy as np
+from  math import log2
 
 class RX():
-    def __init__(self):
+    def __init__(self,constelation,bitstype):
         #Channel Data set is of size 48
-        self.bitsframe = 2
+        self.bitsframe = int(log2(constelation))
         self.sym_no = 48
         self.total  = 20000
         self.LOS    = Channel()
         self.NLOS   = Channel(LOS=False)
-        self.Qsym   = QPSK(self.sym_no * self.total) # all symbols per realization
+        self.Qsym   = QAM(self.sym_no * self.total,constelation=constelation,cont_type= bitstype) # all symbols per realization
         #Each column is a realization 
         self.Qsym.GroundTruth = np.reshape(self.Qsym.GroundTruth,(self.sym_no,self.total,1))
         self.Qsym.r    = np.reshape(self.Qsym.r,(self.sym_no,self.total,1))

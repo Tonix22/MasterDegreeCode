@@ -9,3 +9,5 @@ manim_animations/Chapter2/media/videos/Equations1/720p30/partial_movie_files/Cha
 manim_animations/MesssagePassing/media/videos/Channel_Matrix/1080p60/partial_movie_files/Channel/*.mp4
 manim_animations/Chapter2/media/texts/96a9fe330bd31ce3.svg
 OFDM_Equalizer/reports/*.csv
+OFDM_Equalizer/Data/v2v80211p_LOS.mat
+OFDM_Equalizer/Data/v2v80211p_NLOS.mat

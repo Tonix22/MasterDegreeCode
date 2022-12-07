@@ -2,6 +2,7 @@
     "python.analysis.extraPaths": [
         "./OFDM_Equalizer/App/NeuronalNet",
         "./OFDM_Equalizer/conf",
-        "./OFDM_Equalizer/tools"
+        "./OFDM_Equalizer/tools",
+        "./OFDM_Equalizer/controllers"
     ]
 }

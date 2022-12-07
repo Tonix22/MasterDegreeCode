@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, '../Channels')
 sys.path.insert(0,'../QAM')
 
-from QPSK import QPSK
+from QAM_mod import QPSK
 from RayleightFadeYungs import rayleightFading
 
 

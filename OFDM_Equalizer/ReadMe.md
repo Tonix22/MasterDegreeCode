@@ -1,3 +1,14 @@
+# Recomendations
+sudo apt install nvidia-cuda-toolkit
+
+# Terminal steps 
+conda create --name thesis
+conda install --yes --file requirements.txt
+conda install -c conda-forge pytorch-gpu
+
+# Dependendencies
+pip3 install -r requirements.txt
+
 ## Notes
 
 10,000 Samples of LOS and NLOS

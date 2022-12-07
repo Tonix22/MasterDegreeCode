@@ -4,7 +4,9 @@ import os
 import sys
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
 sys.path.insert(0, main_path+"conf")
-from config import MATH_PATH 
+sys.path.insert(0, main_path+"tools")
+from config import MATH_PATH
+from DownloadFiles import Download_Mat_files
 
 class Channel():
     #Data Set size of 10,000 for each data set
@@ -13,7 +15,10 @@ class Channel():
         #This class convert mat file into numpy 
         Mat = None
         import os
-        directory_path = MATH_PATH 
+        directory_path = MATH_PATH
+        if(os.path.exists(directory_path+"/v2v80211p_LOS.mat") == False):
+            Download_Mat_files()
+            
         if(LOS):
             Mat = scipy.io.loadmat("{}{}".format(directory_path,'v2v80211p_LOS.mat'))
         else:

@@ -3,7 +3,7 @@ from random import randint
 import numpy as np
 from numpy.linalg import norm 
 from math import log2
-from QPSK import QPSK
+from QAM_mod import QPSK
 from Matrix_tools import Permutation_matrix
 
 class Transmiter():
