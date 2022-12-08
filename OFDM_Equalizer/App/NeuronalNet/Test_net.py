@@ -26,6 +26,7 @@ class TestNet(NetLabs):
     def __init__(self,path = None,pth_real=None,pth_imag=None,loss_type=MSE):
         super().__init__(loss_type,GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,step=GOLDEN_STEP)
         self.real_imag = None
+        #model loading
         if(loss_type == MSE_COMPLETE):
             self.model = self.Generate_Network_Model()
             self.model.load_state_dict(torch.load(path))
@@ -39,8 +40,10 @@ class TestNet(NetLabs):
             self.model_imag.load_state_dict(torch.load(pth_imag))
             
         #ground truth
-        if(self.loss_type == CROSSENTROPY or self.loss_type == MSE_COMPLETE):
+        if(self.loss_type == CROSSENTROPY):
             self.gt = self.Get_ground_truth(self.data.Qsym.bits)
+        elif(self.loss_type == MSE_COMPLETE):
+            self.gt = torch.tensor(self.data.Qsym.GroundTruth).to(self.device)
         else:
             self.real_imag = BOTH
             self.gt = self.Get_ground_truth(self.data.Qsym.GroundTruth)
@@ -102,26 +105,18 @@ class TestNet(NetLabs):
         df = pd.DataFrame()
         BER    = []
         for SNR in range(self.BEST_SNR,self.WORST_SNR-1,-1*self.step):
-            losses = []
             self.r = self.Generate_SNR(SNR,BOTH)
             loop   = tqdm(range(0,self.data.total),desc="Progress")
             errors = 0
-            passed = 0
             frames = self.data.total # self.training_data
             for i in loop:
                 
                 X  = torch.squeeze(self.r[:,i],1)  # input
-                Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
+                Y  = torch.squeeze(self.gt[:,i],1) # ground 
                 
-                pred_real = self.model_real(X[0:self.data.sym_no],SNR)
-                pred_imag = self.model_imag(X[self.data.sym_no:],SNR)
-                                
-                loss_real = self.criterion(pred_real,Y[0:self.data.sym_no])
-                loss_imag = self.criterion(pred_imag,Y[self.data.sym_no:])
-                
-                loss = (loss_real + loss_imag)/2
-
-                losses.append(loss.cpu().detach().numpy())
+                if(self.real_imag == BOTH):
+                    pred_real = self.model_real(X[0:self.data.sym_no],SNR)
+                    pred_imag = self.model_imag(X[self.data.sym_no:],SNR)
                 
                 #BER
                 if(self.loss_type == MSE):
@@ -130,6 +125,15 @@ class TestNet(NetLabs):
                     imag   = pred_imag.cpu().detach().numpy()
                     res    = real + 1j*imag
                     rxbits = self.data.Qsym.Demod(res)
+                    
+                if(self.loss_type == MSE_COMPLETE):
+                    real = X[0:self.data.sym_no]
+                    imag = X[self.data.sym_no:]
+                    pred = self.model(real,imag)
+                    pred = pred.cpu().detach().numpy()
+                    pred = pred[:,0]+1j*pred[:,1]
+                    rxbits = self.data.Qsym.Demod(pred)
+                    
 
                 txbits = np.squeeze(self.data.Qsym.bits[:,i],axis=1)
                 errors+=np.unpackbits((txbits^rxbits).view('uint8')).sum()
@@ -140,16 +144,11 @@ class TestNet(NetLabs):
                     loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*frames))
                     #print(GPUtil.showUtilization())
                     
-            #Apend report to data frame
-            df["SNR{}".format(SNR)]= losses
-            losses.clear()
-            
             #Calculate BER
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
         
         
         formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,get_time_string())
-        df.to_csv('{}/Testing_Loss_{}.csv'.format(test_path,formating), header=True, index=False)
         vector_to_pandas("BER_{}.csv".format(formating),BER)
         
         

@@ -45,7 +45,7 @@ def Motor(event):
 
     if(event == TEST_COMPLETE):
         TN = TestNet(path = pth_complete,loss_type=MSE_COMPLETE)
-        TN.TestQAM()
+        TN.Test()
         
     #Magnitud Phase
     if(event == TEST_POLAR):

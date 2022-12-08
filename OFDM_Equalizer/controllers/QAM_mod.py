@@ -44,7 +44,7 @@ class QAM():
         self.GroundTruth = np.expand_dims(self.GroundTruth,axis=1)
         self.r = np.expand_dims(self.r,axis=1)
     
-    def DemodUpgrade(self,vect):
+    def Demod(self,vect):
         bits  = []
         IQ_defect  = np.asarray(vect)
         for IQ in np.nditer(IQ_defect):
@@ -54,31 +54,7 @@ class QAM():
                 distances[n]= sqrt((IQ.real-Block_angle.real)**2+(IQ.imag-Block_angle.imag)**2)
             bits.append(np.argmin(distances))
 
-        return np.asarray(bits)   
-            
-    def Demod(self,vect):
-        angle = None
-        bits  = []
-        for n in vect:
-            angle = np.angle(n,deg=True)
-            #First quadrant
-            if(angle >=0 and angle <= 90):
-                bits.append(3)#11
-            #Second quadrant
-            elif(angle > 90 and angle <=180):
-                bits.append(1)#01
-            #Third Quadrant
-            elif(angle >= -180 and angle < -90):
-                bits.append(0)#00
-            #Fourth quadrant
-            elif(angle > -90 and angle < 0):
-                bits.append(2)#10
-            else:
-                print("error")
-                print(angle)
-                
-        return np.asarray(bits)      
-        
+        return np.asarray(bits)
     
         
     def QPSK_Plot(self,vect):

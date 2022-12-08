@@ -8,37 +8,29 @@ from torch.autograd import Variable
 class Linear_concat(nn.Module):
     def __init__(self, input_size,hidden_size):
         super(Linear_concat, self).__init__()
-        self.fading1 = int(hidden_size*.7)
-        self.real_stage = nn.Sequential(
+        self.denoiser_real = nn.Sequential(
+            nn.Hardtanh(),
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, hidden_size,bias=True),
-            nn.Linear(hidden_size, input_size,bias=True),
+            nn.Linear(hidden_size, hidden_size*int(1.5),bias=True),
             nn.Hardtanh(),
-            nn.Linear(input_size, input_size,bias=True),
+            nn.Linear(hidden_size*int(1.5), input_size,bias=True),
+            nn.Hardtanh(),
         )
-        self.imag_stage = nn.Sequential(
+        self.denoiser_imag = nn.Sequential(
+            nn.Hardtanh(),
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, hidden_size,bias=True),
-            nn.Linear(hidden_size, input_size,bias=True),
+            nn.Linear(hidden_size, hidden_size*int(1.5),bias=True),
             nn.Hardtanh(),
-            nn.Linear(input_size, input_size,bias=True),
+            nn.Linear(hidden_size*int(1.5), input_size,bias=True),
+            nn.Hardtanh(),
         )
-        self.QPSK = nn.Sequential(
-            nn.Linear(input_size*2, int(input_size*1.7)),
-            nn.LeakyReLU(0.1),
-            nn.Linear(int(input_size*1.7), int(input_size*1.5)),
-            nn.LeakyReLU(0.1),
-            nn.Linear(int(input_size*1.5), int(input_size)),
-        )
-        
+
     def forward(self, x1, x2):
-        out1 = self.real_stage(x1)
-        out2 = self.imag_stage(x2)
-        out  = torch.cat((out1,out2))
-        out  = self.QPSK(out)
-        return out
+        real = self.denoiser_real(x1)
+        imag = self.denoiser_imag(x2)
+        return torch.column_stack((real,imag))
         
 
 class LinearNet(nn.Module):

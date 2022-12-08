@@ -27,8 +27,10 @@ class TrainNet(NetLabs):
         self.real_imag = real_imag
        
         #ground truth
-        if(self.loss_type == CROSSENTROPY or self.loss_type == MSE_COMPLETE):
+        if(self.loss_type == CROSSENTROPY):
             self.gt = self.Get_ground_truth(self.data.Qsym.bits)
+        elif(self.loss_type == MSE_COMPLETE):
+            self.gt = torch.tensor(self.data.Qsym.GroundTruth).to(self.device)
         else:
             self.gt = self.Get_ground_truth(self.data.Qsym.GroundTruth)
         #Set up NN
@@ -79,11 +81,12 @@ class TrainNet(NetLabs):
                             #Y   = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1) 
                             
                         if(self.loss_type == MSE_COMPLETE):
-                            a = X[0:self.data.sym_no].float()
-                            b = X[self.data.sym_no:].float()
-                            pred = self.model(a,b)
-                            Y    = Y/3 #normalize constelation points
-                            loss = self.criterion(pred,Y.float())
+                            real = X[0:self.data.sym_no]
+                            imag = X[self.data.sym_no:]
+                            pred = self.model(real,imag)
+                            Y    = torch.squeeze(self.gt[:,i],1)
+                            loss = self.criterion(pred,Y)
+                            
                         else:
                             pred = self.model(X,SNR)
                             loss = self.criterion(pred,Y)

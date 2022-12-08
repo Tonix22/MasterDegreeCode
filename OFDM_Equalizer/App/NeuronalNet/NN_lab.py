@@ -9,7 +9,7 @@ from   Networks import Inverse_Net,Linear_concat,LinearNet
 import pandas as pd
 from datetime import datetime
 
-from math import pi
+from math import pi,sqrt
 import os 
 import sys
 
@@ -30,7 +30,7 @@ class NetLabs(object):
         self.step      = step
         self.loss_type = loss_type
         #Data set read
-        self.data   = RX()
+        self.data   = RX(32,"Norm")
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         #Data numbers
         self.N = self.data.sym_no
@@ -38,15 +38,9 @@ class NetLabs(object):
         self.training_data = int(self.data.total*.8)
         self.toggle = toggle
     
-    def BER_LOS(self,output,target):
-        #discrete = output.type('torch.CharTensor').to(self.device)
-        #target   = target.type('torch.CharTensor').to(self.device)
-        loss     = torch.bitwise_xor(output,target)
-        #return torch.mean((output - target)**2)
-        #loss     = ((loss&1).sum()+(loss&2>>1).sum())
-        loss = loss.type('torch.FloatTensor')
-        loss.requires_grad = True
-        loss = torch.mean((loss)**2)
+    def Complex_distance(self,output,target):
+        y = torch.column_stack((target.real,target.imag))
+        loss = torch.sqrt(torch.pow(torch.dist(output[:,0], y[:,0], 1),2)+torch.pow(torch.dist(output[:,1], y[:,1], 1),2))
         return loss
     
     def Generate_Network_Model(self):
@@ -56,7 +50,7 @@ class NetLabs(object):
             NN  = LinearNet(input_size=self.N, hidden_size=int(self.N*1.5)).double()
         
         if(self.loss_type == MSE_COMPLETE):
-            NN  = Linear_concat(input_size=self.N,hidden_size=3*self.N)
+            NN  = Linear_concat(input_size=self.N, hidden_size=int(self.N*3)).double()
 
         if(self.loss_type == MSE_INV):
             NN = Inverse_Net(input_size=self.N)
@@ -71,8 +65,8 @@ class NetLabs(object):
             self.criterion = nn.MSELoss()
             #self.criterion = nn.L1Loss()
         if(self.loss_type == MSE_COMPLETE):
-            #self.criterion = self.BER_LOS
-            self.criterion = nn.MSELoss()
+            self.criterion = self.Complex_distance
+            #self.criterion = nn.MSELoss()
             
         if(self.loss_type == CROSSENTROPY):
             #self.criterion = nn.CrossEntropyLoss()
