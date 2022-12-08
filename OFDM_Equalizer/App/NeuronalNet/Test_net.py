@@ -157,51 +157,52 @@ class TestNet_Angle_Phase(NetLabs):
         super().__init__(loss_type,GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,step=GOLDEN_STEP)
         
         self.model_angle = self.Generate_Network_Model()
-        #self.model_mag   = self.Generate_Network_Model()
         self.model_angle.load_state_dict(torch.load(pth_angle))
-        #self.model_mag.load_state_dict(torch.load(pth_mag))
-        #angle
-        self.real_imag = ANGLE
-        self.gt_angle = self.Get_ground_truth(self.data.Qsym.GroundTruth)
-        #Mag
-        #self.real_imag = ABS
-        #self.gt_abs = self.Get_ground_truth(self.data.Qsym.GroundTruth)
+        if(self.data.bitsframe !=4):
+            self.model_mag   = self.Generate_Network_Model()
+            self.model_mag.load_state_dict(torch.load(pth_mag))
         
     def Test(self):
         df  = pd.DataFrame()
         BER = []
         
         for SNR in range(self.BEST_SNR,self.WORST_SNR-1,-1*self.step):
-            losses = []
+            #losses = []
             
-            #self.r_abs   = self.Generate_SNR(SNR,ABS)
+            self.r_abs   = self.Generate_SNR(SNR,ABS)
             self.r_angle = self.Generate_SNR(SNR,ANGLE)
             
             loop   = tqdm(range(0,self.data.total),desc="Progress")
             errors = 0
-            passed = 0
+            #passed = 0
             frames = self.data.total # self.training_data
             for i in loop:
                 
                 X_ang  = torch.squeeze(self.r_angle[:,i],1)  # input
-                #X_abs  = torch.squeeze(self.r_abs[:,i],1) 
-                Y_angle  = torch.squeeze(self.gt_angle[:,i],1) # ground thruth
+                if(self.data.bitsframe !=4):
+                    X_abs  = torch.squeeze(self.r_abs[:,i],1) 
+                #Y_angle  = torch.squeeze(self.gt_angle[:,i],1) # ground thruth
                 
                 pred_ang = self.model_angle(X_ang,SNR)
-                #pred_abs = self.model_mag(X_abs)
+                if(self.data.bitsframe !=4):
+                    pred_abs = self.model_mag(X_abs,SNR)
                                 
-                loss_ang = self.criterion(pred_ang,Y_angle.float())
+                #loss_ang = self.criterion(pred_ang,Y_angle.float())
                 #loss_abs = self.criterion(pred_abs,Y_mag.float())
                 
                 #loss = (loss_ang + loss_abs)/2
 
-                losses.append(loss_ang.cpu().detach().numpy())
+                #losses.append(loss_ang.cpu().detach().numpy())
                 
 
                 pred_ang = pred_ang*pi
                 theta    = pred_ang.cpu().detach().numpy()
-                #radius   = pred_abs.cpu().detach().numpy()
-                res      = .7*np.exp(1j*theta)
+                if(self.data.bitsframe !=4):
+                    radius   = pred_abs.cpu().detach().numpy()
+                else:
+                    radius = .7
+                    
+                res      = radius*np.exp(1j*theta)
                 rxbits   = self.data.Qsym.Demod(res)
 
                 txbits = np.squeeze(self.data.Qsym.bits[:,i],axis=1)
@@ -214,15 +215,15 @@ class TestNet_Angle_Phase(NetLabs):
                     #print(GPUtil.showUtilization())
                     
             #Apend report to data frame
-            df["SNR{}".format(SNR)]= losses
-            losses.clear()
+            #df["SNR{}".format(SNR)]= losses
+            #losses.clear()
             
             #Calculate BER
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
         
         
         formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],get_time_string())
-        df.to_csv('{}/Testing_Loss_{}.csv'.format(test_path,formating), header=True, index=False)
+        #df.to_csv('{}/Testing_Loss_{}.csv'.format(test_path,formating), header=True, index=False)
         
         vector_to_pandas("BER_{}.csv".format(formating),BER)
                 

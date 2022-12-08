@@ -26,7 +26,7 @@ def Motor(event):
         Complete.TrainMSE(epochs=EPOCHS)
     #Magnitud
     if(event == TRAIN_MSE_MAG):
-        magnitud = TrainNet(real_imag=ABS,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=-5)
+        magnitud = TrainNet(real_imag=ABS,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=STEP_SNR)
         magnitud.TrainMSE(epochs=EPOCHS)
     #Phase
     if(event == TRAIN_MSE_PHASE):
