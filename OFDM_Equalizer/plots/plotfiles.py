@@ -9,7 +9,7 @@ sys.path.insert(0, utils_path)
 
 from utils import read_plot_pandas
 
-Month = "December/"
+Month = "December/16QAM/"
 Test_path = Test_path+"/"+Month
 
 paths = [Test_path+"Golden_LMSE_BER_SNR-8_12_2022-0_7.csv",
