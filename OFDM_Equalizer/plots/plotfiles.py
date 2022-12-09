@@ -12,9 +12,9 @@ from utils import read_plot_pandas
 Month = "December/"
 Test_path = Test_path+"/"+Month
 
-paths = [Test_path+"BER_SNR_(45_5)_(BOTH)_-2_12_2022-11_46.csv",
-         Test_path+"Golden_LMSE_BER_SNR-2_12_2022-11_43.csv"]
+paths = [Test_path+"Golden_LMSE_BER_SNR-8_12_2022-0_7.csv",
+         Test_path+"BER_SNR_(45_5)_(BOTH)_-7_12_2022-23_44.csv"]
 
-labels = ["LMMSE","NN_Phase"]
+labels = ["LMMSE","Polar"]
 
 read_plot_pandas(paths,labels)

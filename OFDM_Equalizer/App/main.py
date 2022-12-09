@@ -37,7 +37,11 @@ def Motor(event):
         inv = TrainNet(real_imag=INV,loss_type=MSE_INV,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=STEP_SNR)
         inv.TraiINV(epochs=EPOCHS)
     
-    #TEST     
+    if(event == TRAIN_BCE):
+        bce = TrainNet(real_imag=FOUR,loss_type=BCE,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=STEP_SNR)
+        bce.TrainBCE(epochs=EPOCHS)
+    
+    #TEST   ***********************************  
     if(event == TEST_MSE):
         print("testing")
         TN = TestNet(pth_real = pth1,pth_imag = pth2)
@@ -61,26 +65,28 @@ if __name__ == '__main__':
         Motor(TRAIN_MSE_IMAG)
         
     #MAG PHASE
-    if(sys.argv[1] == "trainMSE_Mag"):
+    if(sys.argv[1] == "train_Mag"):
         Motor(TRAIN_MSE_MAG)
-    if(sys.argv[1] == "trainMSE_Phase"):
+    if(sys.argv[1] == "train_Phase"):
         Motor(TRAIN_MSE_PHASE)
     
     #Real and Imag concatenated and QAMdemod
     if(sys.argv[1]=="train_complete"):   
         Motor(TRAIN_COMPLETE)
     #PSEUDOINVERSE
-    if(sys.argv[1] == "trainMSE_INV"):
-        Motor(TRAIN_MSE_INV)      
+    if(sys.argv[1] == "train_inv"):
+        Motor(TRAIN_MSE_INV)
+    if(sys.argv[1] == "train_bce"):
+        Motor(TRAIN_BCE)
     
     #***** TEST ******
     
     #Test Mag and Phase together
-    if(sys.argv[1] == "testMSE_Polar"):
+    if(sys.argv[1] == "test_polar"):
         Motor(TEST_POLAR)
         
     #Test Real and Imaginary together
-    if(sys.argv[1] == "testMSE"):
+    if(sys.argv[1] == "test_real_imag"):
         Motor(TEST_MSE)
     
     #Test equalizer with Real and Imag concatenated

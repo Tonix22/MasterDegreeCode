@@ -19,18 +19,18 @@ from utils import get_time_string
 
 class TrainNet(NetLabs):
     def __init__(self,real_imag = REAL,loss_type=MSE,toggle = False,best_snr = 60,worst_snr = 5,step=-1):
-        super().__init__(loss_type,best_snr,worst_snr,toggle=toggle,step=step)
+        super().__init__(loss_type,best_snr,worst_snr,toggle=toggle,step=step,real_imag = real_imag)
         print("device = {}".format(self.device))
         #NN model
         self.model = None 
-        #Constant Paramters
-        self.real_imag = real_imag
        
         #ground truth
         if(self.loss_type == CROSSENTROPY):
             self.gt = self.Get_ground_truth(self.data.Qsym.bits)
         elif(self.loss_type == MSE_COMPLETE):
             self.gt = torch.tensor(self.data.Qsym.GroundTruth).to(self.device)
+        elif(self.loss_type == BCE):
+            self.gt = torch.tensor(self.data.Qsym.bits,device = self.device,dtype=torch.float64)
         else:
             self.gt = self.Get_ground_truth(self.data.Qsym.GroundTruth)
         #Set up NN
@@ -52,8 +52,52 @@ class TrainNet(NetLabs):
             channels = np.concatenate((LMMSE.real,LMMSE.imag),axis=0)
             channels = np.reshape(channels,(2,self.data.sym_no))
             return torch.from_numpy(channels).to(self.device)
-            
-                                            
+    
+    def TrainBCE(self,epochs=3):
+        df   = pd.DataFrame()
+        pred = None
+        toogle_iter = 1
+        size = 1<<self.data.bitsframe
+        symbol = torch.zeros(size,dtype=torch.float64).to(self.device)
+        if(self.toggle == True):
+            toogle_iter = 2
+        for it in range(0,toogle_iter):# 2 if toggle required
+            for SNR in range(self.BEST_SNR,self.WORST_SNR-1,self.step):
+                for epochs_range in range(0,epochs):
+                    losses = []
+                    self.r = self.Generate_SNR(SNR,self.real_imag)
+                    loop  = tqdm(range(0,self.training_data),desc="Progress")
+                    for i in loop:
+                        X  = torch.squeeze(self.r[:,i])  # input TODO
+                        Y  = torch.squeeze(self.gt[:,i])
+                        avg_loss = 0
+                        for j in range(0,self.data.sym_no):
+                            symbol[int(Y[j])]=1
+                            pred = self.model(X[j])
+                            loss = self.criterion(pred,symbol)
+                            avg_loss+=loss
+                            #Clear gradient
+                            self.optimizer.zero_grad()
+                            # Backpropagation
+                            loss.backward()
+                            # Update Gradient
+                            self.optimizer.step()
+                            symbol[int(Y[j])]=0
+                        
+                        avg_loss = avg_loss/self.data.sym_no
+                        #Record the Average loss
+                        losses.append(avg_loss.cpu().detach().numpy())   
+                        #Status bar and monitor    
+                        if(i % 50 == 0):
+                            loop.set_description(f"SNR [{SNR}] EPOCH[{epochs_range}] [{real_imag_str[self.real_imag]}]]")
+                            loop.set_postfix(loss=avg_loss.cpu().detach().numpy())
+        
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_time_string())
+        df.to_csv('{}/Train_{}.csv'.format(report_path,formating), header=True, index=False)
+        
+        self.SaveModel("PTH",formating)
+
+                                         
     def TrainMSE(self,epochs=3):
         df   = pd.DataFrame()
         pred = None
@@ -88,7 +132,7 @@ class TrainNet(NetLabs):
                             loss = self.criterion(pred,Y)
                             
                         else:
-                            pred = self.model(X,SNR)
+                            pred = self.model(X)
                             loss = self.criterion(pred,Y)
                             
                             

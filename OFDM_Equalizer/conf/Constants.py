@@ -13,6 +13,7 @@ TRAIN_MSE_PHASE = 8
 TRAIN_MSE_INV   = 9
 TEST_POLAR      = 10
 TEST_MSE_INV    = 11
+TRAIN_BCE       = 12
 
 #real_imag
 
@@ -22,6 +23,7 @@ BOTH  = 2
 ABS   = 3
 ANGLE = 4
 INV   = 5
+FOUR  = 6
 
 real_imag_str = {
     REAL : "REAL", 
@@ -29,7 +31,8 @@ real_imag_str = {
     BOTH : "BOTH", 
     ABS  : "ABS",  
     ANGLE : "ANGLE",
-    INV   : "LMSE"
+    INV   : "LMSE",
+    FOUR  : "FOUR",
 }
 
 #loss_type
@@ -38,7 +41,8 @@ MSE = 0
 CROSSENTROPY = 1
 MSE_COMPLETE = 2
 MSE_INV = 3
-CUSTOM = 4
+BCE = 4
+CUSTOM = 5
 
 #GET Y 
 GET_TOGGLE = 0

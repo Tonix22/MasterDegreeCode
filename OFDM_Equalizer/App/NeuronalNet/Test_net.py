@@ -154,10 +154,12 @@ class TestNet(NetLabs):
         
 class TestNet_Angle_Phase(NetLabs):
     def __init__(self,pth_angle,pth_mag,loss_type=MSE):
-        super().__init__(loss_type,GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,step=GOLDEN_STEP)
-        
+        super().__init__(loss_type,GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,step=GOLDEN_STEP,real_imag = ANGLE)
+        #Phase
         self.model_angle = self.Generate_Network_Model()
         self.model_angle.load_state_dict(torch.load(pth_angle))
+        #ABS
+        self.real_imag = ABS
         if(self.data.bitsframe !=4):
             self.model_mag   = self.Generate_Network_Model()
             self.model_mag.load_state_dict(torch.load(pth_mag))
@@ -183,9 +185,9 @@ class TestNet_Angle_Phase(NetLabs):
                     X_abs  = torch.squeeze(self.r_abs[:,i],1) 
                 #Y_angle  = torch.squeeze(self.gt_angle[:,i],1) # ground thruth
                 
-                pred_ang = self.model_angle(X_ang,SNR)
+                pred_ang = self.model_angle(X_ang)
                 if(self.data.bitsframe !=4):
-                    pred_abs = self.model_mag(X_abs,SNR)
+                    pred_abs = self.model_mag(X_abs)
                                 
                 #loss_ang = self.criterion(pred_ang,Y_angle.float())
                 #loss_abs = self.criterion(pred_abs,Y_mag.float())
