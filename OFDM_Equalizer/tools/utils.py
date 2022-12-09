@@ -22,7 +22,7 @@ def get_time_string():
     mn   = current_time.time().minute
     return "-{}_{}_{}-{}_{}".format(day,mon,year,hr,mn)
 
-def read_plot_pandas(BER_list,labels):
+def read_plot_pandas(BER_list,labels,title=""):
     indexValues = np.arange(GOLDEN_WORST_SNR,GOLDEN_BEST_SNR+1,GOLDEN_STEP)
     index = 0
     for BER_it in BER_list:
@@ -33,7 +33,7 @@ def read_plot_pandas(BER_list,labels):
         index+=1
     
     plot.legend()  
-    plot.title('SNR and BER')
+    plot.title('SNR and BER'+title)
     # Give x axis label for the semilogy plot
     plot.xlabel('SNR')
     # Give y axis label for the semilogy plot
