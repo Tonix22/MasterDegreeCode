@@ -36,7 +36,7 @@ class NetLabs(object):
         #Data numbers
         self.N = self.data.sym_no
         #Training data lenght is only 80%
-        self.training_data = int(self.data.total*.6)
+        self.training_data = int(self.data.total*.8)
         self.toggle = toggle
     
     def Complex_distance(self,output,target):
@@ -49,7 +49,7 @@ class NetLabs(object):
         
         #MODEL SELECT
         if(self.loss_type == MSE):
-            if(self.real_imag == ANGLE):
+            if(self.real_imag == ANGLE or self.real_imag==REAL or self.real_imag==IMAG):
                 NN  = AngleNet(input_size=self.N, hidden_size=int(self.N*1.5)).double()
                 
             elif(self.real_imag == ABS):

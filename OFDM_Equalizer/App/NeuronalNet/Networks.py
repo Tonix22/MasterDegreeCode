@@ -61,12 +61,13 @@ class MagNet(nn.Module):
         super(MagNet, self).__init__()
         
         self.denoiser = nn.Sequential(
+            #nn.Hardtanh(),
+            nn.Linear(input_size, int(input_size*1.3),bias=True),
             nn.Hardtanh(),
-            nn.Linear(input_size, hidden_size,bias=True),
+            nn.Linear(int(input_size*1.3), hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, int(hidden_size*1.5),bias=True),
-            nn.Hardtanh(),
-            nn.Linear(int(hidden_size*1.5), input_size,bias=True),
+            nn.Linear(hidden_size, int(input_size*1.3),bias=True),
+            nn.Linear(int(input_size*1.3), input_size,bias=True),
         )
     
     def forward(self, x):
@@ -112,8 +113,10 @@ class SymbolNet(nn.Module):
             nn.Hardtanh(),
             nn.Linear(8, 8,bias=True),
             nn.Hardtanh(),
-            nn.Linear(8, QAM,bias=True),
-            nn.Sigmoid(),
+            nn.Linear(8, 16,bias=True),
+            nn.Hardsigmoid(),
+            nn.Linear(16, QAM,bias=True),
+            nn.Hardsigmoid(),
         ).double()
     
     def forward(self, x):

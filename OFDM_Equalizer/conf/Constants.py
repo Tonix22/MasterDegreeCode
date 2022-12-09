@@ -14,6 +14,7 @@ TRAIN_MSE_INV   = 9
 TEST_POLAR      = 10
 TEST_MSE_INV    = 11
 TRAIN_BCE       = 12
+TEST_BCE        = 13
 
 #real_imag
 

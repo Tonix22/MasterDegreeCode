@@ -66,7 +66,7 @@ class TrainNet(NetLabs):
                 for epochs_range in range(0,epochs):
                     losses = []
                     self.r = self.Generate_SNR(SNR,self.real_imag)
-                    loop  = tqdm(range(0,self.training_data),desc="Progress")
+                    loop  = tqdm(range(0,3000),desc="Progress")
                     for i in loop:
                         X  = torch.squeeze(self.r[:,i])  # input TODO
                         Y  = torch.squeeze(self.gt[:,i])

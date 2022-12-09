@@ -34,6 +34,7 @@ class TestNet(NetLabs):
         if(loss_type == MSE):
             self.model_real = None
             self.model_imag = None
+            self.real_imag  = REAL
             self.model_real = self.Generate_Network_Model()
             self.model_imag = self.Generate_Network_Model()
             self.model_real.load_state_dict(torch.load(pth_real))
@@ -115,8 +116,8 @@ class TestNet(NetLabs):
                 Y  = torch.squeeze(self.gt[:,i],1) # ground 
                 
                 if(self.real_imag == BOTH):
-                    pred_real = self.model_real(X[0:self.data.sym_no],SNR)
-                    pred_imag = self.model_imag(X[self.data.sym_no:],SNR)
+                    pred_real = self.model_real(X[0:self.data.sym_no])
+                    pred_imag = self.model_imag(X[self.data.sym_no:])
                 
                 #BER
                 if(self.loss_type == MSE):
@@ -174,10 +175,10 @@ class TestNet_Angle_Phase(NetLabs):
             self.r_abs   = self.Generate_SNR(SNR,ABS)
             self.r_angle = self.Generate_SNR(SNR,ANGLE)
             
-            loop   = tqdm(range(0,self.data.total),desc="Progress")
+            loop   = tqdm(range(self.training_data,self.data.total),desc="Progress")
             errors = 0
             #passed = 0
-            frames = self.data.total # self.training_data
+            frames = self.data.total-self.training_data # self.training_data
             for i in loop:
                 
                 X_ang  = torch.squeeze(self.r_angle[:,i],1)  # input
@@ -228,4 +229,48 @@ class TestNet_Angle_Phase(NetLabs):
         #df.to_csv('{}/Testing_Loss_{}.csv'.format(test_path,formating), header=True, index=False)
         
         vector_to_pandas("BER_{}.csv".format(formating),BER)
+
+class TestNet_BCE(NetLabs):
+    def __init__(self,pth):
+        loss_type = BCE
+        super().__init__(loss_type,GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,step=GOLDEN_STEP,real_imag = FOUR)
+        self.model = self.Generate_Network_Model()
+        self.model.load_state_dict(torch.load(pth))
+        self.gt = torch.tensor(self.data.Qsym.bits,device = self.device,dtype=torch.float64)
+    
+    def hammingWeight(self, n):
+      n = str(bin(n))
+      one_count = 0
+      for i in n:
+         if i == "1":
+            one_count+=1
+      return one_count
+     
+    def Test(self):
+        BER = []
+        for SNR in range(self.BEST_SNR,self.WORST_SNR-1,-1*self.step):
+            self.r = self.Generate_SNR(SNR,self.real_imag)
+            
+            loop   = tqdm(range(int(self.data.total*.5),self.data.total),desc="Progress")
+            errors = 0
+            frames = int(self.data.total*.5)
+            for i in loop:
                 
+                X  = torch.squeeze(self.r[:,i])
+                Y  = torch.squeeze(self.gt[:,i])
+                for j in range(0,self.data.sym_no):
+                    rxbit = self.model(X[j])
+                    rxbit = int(torch.argmax(rxbit))
+                    txbit = int(Y[j])
+                    errors+=self.hammingWeight(rxbit^txbit)
+                    #if(rxbit^txbit != 0):
+                    #    print(str(rxbit)+" -> "+str(txbit))         
+                    
+                if(i % 50 == 0):
+                    loop.set_description(f"SNR [{SNR}]")
+                    loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*frames))
+            
+            BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
+        
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[FOUR],get_time_string())
+        vector_to_pandas("BER_{}.csv".format(formating),BER)

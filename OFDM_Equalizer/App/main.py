@@ -5,7 +5,7 @@ main_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, main_path+"/NeuronalNet")
 sys.path.insert(0, main_path+"/../conf")
 
-from Test_net import TestNet, TestNet_Angle_Phase
+from Test_net import TestNet, TestNet_Angle_Phase,TestNet_BCE
 from Train_Net import TrainNet
 from Constants import *
 from config import *
@@ -55,19 +55,23 @@ def Motor(event):
     if(event == TEST_POLAR):
         TN = TestNet_Angle_Phase(pth_angle,pth_abs)
         TN.Test()
+        
+    if(event == TEST_BCE):
+        TN = TestNet_BCE(pth_bce)
+        TN.Test()
 
 if __name__ == '__main__':
     #***** TRAIN ******
     #COMPLETE
-    if(sys.argv[1] == "trainMSE_Real"):
+    if(sys.argv[1] == "train_real"):
         Motor(TRAIN_MSE_REAL)
-    if(sys.argv[1] == "trainMSE_Imag"):
+    if(sys.argv[1] == "train_imag"):
         Motor(TRAIN_MSE_IMAG)
         
     #MAG PHASE
-    if(sys.argv[1] == "train_Mag"):
+    if(sys.argv[1] == "train_mag"):
         Motor(TRAIN_MSE_MAG)
-    if(sys.argv[1] == "train_Phase"):
+    if(sys.argv[1] == "train_phase"):
         Motor(TRAIN_MSE_PHASE)
     
     #Real and Imag concatenated and QAMdemod
@@ -96,3 +100,6 @@ if __name__ == '__main__':
     #Test Pseudoinverse
     if(sys.argv[1]=="test_inv"):   
         Motor(TEST_MSE_INV)
+        
+    if(sys.argv[1] == "test_bce"):
+        Motor(TEST_BCE)
