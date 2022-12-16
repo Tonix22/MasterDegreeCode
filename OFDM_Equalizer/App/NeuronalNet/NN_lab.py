@@ -6,12 +6,15 @@ import torch.optim as optim
 
 from   tqdm import tqdm
 from   Networks import Inverse_Net,Linear_concat,AngleNet,MagNet,SymbolNet
+from ComplexNetworks import ComplexNet
 import pandas as pd
 from datetime import datetime
 
 from math import pi,sqrt
 import os 
 import sys
+
+import torch.nn.functional as F
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
 sys.path.insert(0, main_path+"conf")
@@ -43,6 +46,11 @@ class NetLabs(object):
         y = torch.column_stack((target.real,target.imag))
         loss = torch.sqrt(torch.pow(torch.dist(output[:,0], y[:,0], 1),2)+torch.pow(torch.dist(output[:,1], y[:,1], 1),2))
         return loss
+    def Complex_MSE(self,output,target):
+        return torch.sum((target-output).abs())
+    def Complex_MSE_polar(self,output,target):
+        return torch.sum(torch.log(torch.pow(output.abs()/target.abs(),2))+torch.pow(output.angle()-target.angle(),2))
+        
     
     def Generate_Network_Model(self):
         NN = None
@@ -51,9 +59,10 @@ class NetLabs(object):
         if(self.loss_type == MSE):
             if(self.real_imag == ANGLE or self.real_imag==REAL or self.real_imag==IMAG):
                 NN  = AngleNet(input_size=self.N, hidden_size=int(self.N*1.5)).double()
-                
             elif(self.real_imag == ABS):
                 NN  = MagNet(input_size=self.N, hidden_size=int(self.N*1.5)).double()
+            elif(self.real_imag == COMPLEX):
+                NN  = ComplexNet(input_size=self.N,hidden_size=int(self.N*1.5))
         
         if(self.loss_type == MSE_COMPLETE):
             NN  = Linear_concat(input_size=self.N, hidden_size=int(self.N*3)).double()
@@ -73,7 +82,10 @@ class NetLabs(object):
         if(self.loss_type == MSE_INV):
             self.criterion = nn.MSELoss().double()
         if(self.loss_type == MSE):
-            self.criterion = nn.MSELoss()
+            if(self.real_imag == COMPLEX):
+                self.criterion  = self.Complex_MSE
+            else:
+                self.criterion = nn.MSELoss()
             #self.criterion = nn.L1Loss()
         if(self.loss_type == MSE_COMPLETE):
             self.criterion = self.Complex_distance
@@ -96,6 +108,8 @@ class NetLabs(object):
             H = np.matrix(self.data.H[:,:,i])
             Entry[:,i]=H.H@Y
         
+        if(real_imag == COMPLEX):
+            return torch.tensor(Entry, device  = torch.device(self.device)).type(torch.complex64)
         
         r_real = torch.tensor(Entry.real,device  = torch.device(self.device),dtype=torch.float64)
         r_imag = torch.tensor(Entry.imag,device  = torch.device(self.device),dtype=torch.float64)
@@ -114,7 +128,8 @@ class NetLabs(object):
             abs   = torch.tensor(np.abs(Entry),device  = torch.device(self.device),dtype=torch.float64)
             angle = torch.tensor(np.angle(Entry)/pi,device  = torch.device(self.device),dtype=torch.float64)
             r     = torch.stack((r_real,r_imag,angle,abs),dim=2)
-         
+        
+        
         del Entry
         torch.cuda.empty_cache()
         return r
@@ -146,6 +161,9 @@ class NetLabs(object):
             channels = np.concatenate((Truth.real,Truth.imag),axis=0)
             channels = np.reshape(channels,(2,self.data.sym_no,self.data.total))
             gt       = torch.from_numpy(channels).to(self.device)
+            
+        if(self.real_imag == COMPLEX):
+            gt = torch.tensor(Truth,device  = torch.device(self.device)).type(torch.complex64)
             
         torch.cuda.empty_cache()
         return gt

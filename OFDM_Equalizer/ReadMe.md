@@ -1,5 +1,6 @@
 # Recomendations
 sudo apt install nvidia-cuda-toolkit
+pip install complexPyTorch
 
 # Terminal steps 
 conda create --name thesis

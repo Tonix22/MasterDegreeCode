@@ -9,16 +9,19 @@ MATH_PATH  = src+"Data/"
 
 pth_complete = base + "OFDM_Eq_SNR_(20_5)_(BOTH)_-8_12_2022-16_42.pth"
 
-pth1         = base + "OFDM_Eq_SNR_(45_25)_(REAL)_-25_11_2022-19_48.pth"
-pth2         = base + "OFDM_Eq_SNR_(45_25)_(IMAG)_-25_11_2022-19_48.pth"
+pth1         = base + "OFDM_Eq_SNR_(40_20)_(REAL)_-9_12_2022-12_5.pth"
+pth2         = base + "OFDM_Eq_SNR_(40_20)_(IMAG)_-9_12_2022-12_7.pth"
 pth_QAM      = base + "Constelation-26_10_2022-16_49.pth"
 
-pth_angle  = base + "OFDM_Eq_SNR_(45_25)_(ANGLE)_-8_12_2022-13_45.pth"
-pth_abs    = base + "OFDM_Eq_SNR_(45_25)_(ABS)_-8_12_2022-14_34.pth"
+pth_angle  = base + "OFDM_Eq_SNR_(40_20)_(ANGLE)_-9_12_2022-13_46.pth"
+pth_abs    = base + "OFDM_Eq_SNR_(40_20)_(ABS)_-9_12_2022-14_5.pth"
 
+pth_bce    = base + "OFDM_Eq_SNR_(40_20)_(FOUR)_-9_12_2022-11_35.pth"
 
-BEST_SNR   = 40
-WORST_SNR  = 20
+pth_complex = base +"OFDM_Eq_SNR_(45_25)_(COMPLEX)_-16_12_2022-0_27.pth"
+
+BEST_SNR   = 45
+WORST_SNR  = 25
 STEP_SNR   = -5
 EPOCHS     = 1
 LEARNING_RATE = .0005

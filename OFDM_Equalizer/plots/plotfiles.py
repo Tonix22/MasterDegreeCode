@@ -12,9 +12,13 @@ from utils import read_plot_pandas
 Month = "December/16QAM/"
 Test_path = Test_path+"/"+Month
 
-paths = [Test_path+"Golden_LMSE_BER_SNR-8_12_2022-0_7.csv",
-         Test_path+"BER_SNR_(45_5)_(BOTH)_-7_12_2022-23_44.csv"]
+paths = [Test_path+"Golden_LMSE_BER_SNR-8_12_2022-13_9.csv",
+         Test_path+"BER_SNR_(45_5)_(COMPLETE)_-9_12_2022-13_36.csv",
+         Test_path+"BER_SNR_(45_5)_(FOUR)_-9_12_2022-12_8.csv",
+         Test_path+"BER_SNR_(45_5)_(POLAR)_-9_12_2022-14_12.csv",
+         Test_path+"BER_SNR_(45_5)_(REAL_IMAG)_-9_12_2022-12_26.csv",
+         ]
 
-labels = ["LMMSE","Polar"]
+labels = ["LMMSE","L2_distance","Symbol","Polar","Real_imag"]
 
-read_plot_pandas(paths,labels)
+read_plot_pandas(paths,labels," 16-QAM")

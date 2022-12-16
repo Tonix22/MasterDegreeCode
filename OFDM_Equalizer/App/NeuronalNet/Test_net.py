@@ -274,3 +274,35 @@ class TestNet_BCE(NetLabs):
         
         formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[FOUR],get_time_string())
         vector_to_pandas("BER_{}.csv".format(formating),BER)
+        
+class TestNet_COMPLEX(NetLabs):
+    def __init__(self,pth):
+        loss_type = MSE
+        super().__init__(loss_type,GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,step=GOLDEN_STEP,real_imag = COMPLEX)
+        self.model = self.Generate_Network_Model()
+        self.model.load_state_dict(torch.load(pth))
+        self.gt = self.Get_ground_truth(self.data.Qsym.GroundTruth)
+        
+    def Test(self):
+        BER = []
+        for SNR in range(self.BEST_SNR,self.WORST_SNR-1,-1*self.step):
+            self.r = self.Generate_SNR(SNR,self.real_imag)
+            loop   = tqdm(range(int(self.data.total*.8),self.data.total),desc="Progress")
+            errors = 0
+            frames = self.data.total*.2
+            for i in loop:
+                X  = torch.squeeze(self.r[:,i])
+                Y  = torch.squeeze(self.gt[:,i]).cpu().detach().numpy()
+                pred   = self.model(X).cpu().detach().numpy()
+                rxbits = self.data.Qsym.Demod(pred)
+                txbits = self.data.Qsym.Demod(Y)
+                errors+=np.unpackbits((txbits^rxbits).view('uint8')).sum()
+                #Status bar and monitor  
+                if(i % 100 == 0):
+                    loop.set_description(f"SNR [{SNR}]")
+                    loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*frames))
+            
+            BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
+            
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[COMPLEX],get_time_string())
+        vector_to_pandas("BER_{}.csv".format(formating),BER)

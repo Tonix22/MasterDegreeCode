@@ -15,6 +15,8 @@ TEST_POLAR      = 10
 TEST_MSE_INV    = 11
 TRAIN_BCE       = 12
 TEST_BCE        = 13
+TRAIN_COMPLEX   = 14
+TEST_COMPLEX    = 15
 
 #real_imag
 
@@ -25,6 +27,7 @@ ABS   = 3
 ANGLE = 4
 INV   = 5
 FOUR  = 6
+COMPLEX = 7
 
 real_imag_str = {
     REAL : "REAL", 
@@ -34,6 +37,7 @@ real_imag_str = {
     ANGLE : "ANGLE",
     INV   : "LMSE",
     FOUR  : "FOUR",
+    COMPLEX : "COMPLEX"
 }
 
 #loss_type

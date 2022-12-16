@@ -40,6 +40,8 @@ class TrainNet(NetLabs):
         Y = self.data.Qsym.r[:,i]
         H = np.matrix(self.data.H[:,:,i])
         LMMSE = np.linalg.inv(H.H@H+np.eye(48)*(10**(-SNR/10)))@H.H@Y
+        if(self.real_imag == COMPLEX):
+            return torch.from_numpy(LMMSE).to(self.device)
         if(self.real_imag == REAL):
             return torch.from_numpy(LMMSE.real).to(self.device)
         if(self.real_imag == IMAG):
@@ -121,8 +123,8 @@ class TrainNet(NetLabs):
                             else:
                                 Y  = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1)
                         else:    
-                            Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
-                            #Y   = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1) 
+                            #Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
+                            Y   = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1) 
                             
                         if(self.loss_type == MSE_COMPLETE):
                             real = X[0:self.data.sym_no]

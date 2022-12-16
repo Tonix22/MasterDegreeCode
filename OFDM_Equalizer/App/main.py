@@ -5,7 +5,7 @@ main_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, main_path+"/NeuronalNet")
 sys.path.insert(0, main_path+"/../conf")
 
-from Test_net import TestNet, TestNet_Angle_Phase,TestNet_BCE
+from Test_net import TestNet, TestNet_Angle_Phase,TestNet_BCE,TestNet_COMPLEX
 from Train_Net import TrainNet
 from Constants import *
 from config import *
@@ -41,6 +41,10 @@ def Motor(event):
         bce = TrainNet(real_imag=FOUR,loss_type=BCE,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=STEP_SNR)
         bce.TrainBCE(epochs=EPOCHS)
     
+    if(event == TRAIN_COMPLEX):
+        complex_net = TrainNet(real_imag=COMPLEX,loss_type=MSE,best_snr=BEST_SNR,worst_snr=WORST_SNR,step=STEP_SNR,toggle=False)
+        complex_net.TrainMSE(epochs=EPOCHS)
+    
     #TEST   ***********************************  
     if(event == TEST_MSE):
         print("testing")
@@ -59,6 +63,10 @@ def Motor(event):
     if(event == TEST_BCE):
         TN = TestNet_BCE(pth_bce)
         TN.Test()
+    if(event == TEST_COMPLEX):
+        TN = TestNet_COMPLEX(pth_complex)
+        TN.Test()
+        
 
 if __name__ == '__main__':
     #***** TRAIN ******
@@ -82,6 +90,8 @@ if __name__ == '__main__':
         Motor(TRAIN_MSE_INV)
     if(sys.argv[1] == "train_bce"):
         Motor(TRAIN_BCE)
+    if(sys.argv[1] == "train_complex"):
+        Motor(TRAIN_COMPLEX)
     
     #***** TEST ******
     
@@ -103,3 +113,6 @@ if __name__ == '__main__':
         
     if(sys.argv[1] == "test_bce"):
         Motor(TEST_BCE)
+        
+    if(sys.argv[1] == "test_complex"):
+        Motor(TEST_COMPLEX)
