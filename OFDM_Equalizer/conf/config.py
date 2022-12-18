@@ -18,7 +18,7 @@ pth_abs    = base + "OFDM_Eq_SNR_(40_20)_(ABS)_-9_12_2022-14_5.pth"
 
 pth_bce    = base + "OFDM_Eq_SNR_(40_20)_(FOUR)_-9_12_2022-11_35.pth"
 
-pth_complex = base +"OFDM_Eq_SNR_(45_25)_(COMPLEX)_-16_12_2022-0_27.pth"
+pth_complex = base +"OFDM_Eq_SNR_(45_25)_(COMPLEX)_-16_12_2022-0_57.pth"
 
 BEST_SNR   = 45
 WORST_SNR  = 25
