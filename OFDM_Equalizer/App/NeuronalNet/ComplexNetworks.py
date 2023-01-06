@@ -49,8 +49,6 @@ class Encoder(nn.Module):
         self.L2 = ComplexLinear(128, encoded_space_dim)
         
     def forward(self, x): # 1,1,48,48
-        mean, std = torch.mean(x), torch.std(x)
-        x  = (x-mean)/std
         # cnn layers
         x = self.conv1(x) # 1,8,24,24
         x = complex_hardtanh(x)
@@ -86,8 +84,6 @@ class Decoder(nn.Module):
         self.conv5 = ComplexConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1)
         
     def forward(self, z):
-        mean, std = torch.mean(z), torch.std(z)
-        x  = (z-mean)/std
         # from z to linear FC
         x = self.L1(z)
         x = complex_hardtanh(x)
