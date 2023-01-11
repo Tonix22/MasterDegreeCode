@@ -34,7 +34,7 @@ class NetLabs(object):
         self.step      = step
         self.loss_type = loss_type
         #Data set read
-        self.data   = RX(16,"Unit_Pow")
+        self.data   = RX(4,"Data")
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         #Data numbers
         self.N = self.data.sym_no

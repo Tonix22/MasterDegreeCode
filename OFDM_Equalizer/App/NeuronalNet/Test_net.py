@@ -161,7 +161,7 @@ class TestNet_Angle_Phase(NetLabs):
         self.model_angle.load_state_dict(torch.load(pth_angle))
         #ABS
         self.real_imag = ABS
-        if(self.data.bitsframe !=4):
+        if(self.data.Qsym.constelation !=4):
             self.model_mag   = self.Generate_Network_Model()
             self.model_mag.load_state_dict(torch.load(pth_mag))
         
@@ -182,12 +182,12 @@ class TestNet_Angle_Phase(NetLabs):
             for i in loop:
                 
                 X_ang  = torch.squeeze(self.r_angle[:,i],1)  # input
-                if(self.data.bitsframe !=4):
+                if(self.data.Qsym.constelation !=4):
                     X_abs  = torch.squeeze(self.r_abs[:,i],1) 
                 #Y_angle  = torch.squeeze(self.gt_angle[:,i],1) # ground thruth
                 
                 pred_ang = self.model_angle(X_ang)
-                if(self.data.bitsframe !=4):
+                if(self.data.Qsym.constelation !=4):
                     pred_abs = self.model_mag(X_abs)
                                 
                 #loss_ang = self.criterion(pred_ang,Y_angle.float())
@@ -200,7 +200,7 @@ class TestNet_Angle_Phase(NetLabs):
 
                 pred_ang = pred_ang*pi
                 theta    = pred_ang.cpu().detach().numpy()
-                if(self.data.bitsframe !=4):
+                if(self.data.Qsym.constelation !=4):
                     radius   = pred_abs.cpu().detach().numpy()
                 else:
                     radius = .7

@@ -2,7 +2,7 @@ import os
 #ls -Art | tail -n 1
 src         = os.path.dirname(os.path.abspath(__file__))+"/../"
 
-base       = src+"models/16QAM/"
+base       = src+"models/"
 Test_PAHT  = src+"Test/"
 PLOTS_PATH = src+"plots/"
 MATH_PATH  = src+"Data/"
@@ -13,7 +13,8 @@ pth1         = base + "OFDM_Eq_SNR_(40_20)_(REAL)_-9_12_2022-12_5.pth"
 pth2         = base + "OFDM_Eq_SNR_(40_20)_(IMAG)_-9_12_2022-12_7.pth"
 pth_QAM      = base + "Constelation-26_10_2022-16_49.pth"
 
-pth_angle  = base + "OFDM_Eq_SNR_(40_20)_(ANGLE)_-9_12_2022-13_46.pth"
+
+pth_angle  = base + "QPSK/Phase/OFDM_Eq_SNR_(45_25)_(ANGLE)_-11_1_2023-17_17.pth"
 pth_abs    = base + "OFDM_Eq_SNR_(40_20)_(ABS)_-9_12_2022-14_5.pth"
 
 pth_bce    = base + "OFDM_Eq_SNR_(40_20)_(FOUR)_-9_12_2022-11_35.pth"
