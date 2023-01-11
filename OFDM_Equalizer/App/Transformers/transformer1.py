@@ -281,3 +281,57 @@ opt     = torch.optim.SGD(model.parameters(), lr=0.01)
 loss_fn = nn.CrossEntropyLoss()
 
 train_loss_list, validation_loss_list = fit(model, opt, loss_fn, train_dataloader, val_dataloader, 10)
+
+
+#PLOT results
+plt.plot(train_loss_list, label = "Train loss")
+plt.plot(validation_loss_list, label = "Validation loss")
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Loss vs Epoch')
+plt.legend()
+plt.show()
+
+def predict(model, input_sequence, max_length=15, SOS_token=2, EOS_token=3):
+    model.eval()
+    
+    y_input = torch.tensor([[SOS_token]], dtype=torch.long, device=device)
+
+    num_tokens = len(input_sequence[0])
+
+    for _ in range(max_length):
+        # Get source mask
+        tgt_mask = model.get_tgt_mask(y_input.size(1)).to(device)
+        
+        pred = model(input_sequence, y_input, tgt_mask)
+        
+        next_item = pred.topk(1)[1].view(-1)[-1].item() # num with highest probability
+        next_item = torch.tensor([[next_item]], device=device)
+
+        # Concatenate previous input with predicted best word
+        y_input = torch.cat((y_input, next_item), dim=1)
+
+        # Stop if model predicts end of sentence
+        if next_item.view(-1).item() == EOS_token:
+            break
+
+    return y_input.view(-1).tolist()
+  
+  
+# Here we test some examples to observe how the model predicts
+examples = [
+    torch.tensor([[2, 0, 0, 0, 0, 0, 0, 0, 0, 3]], dtype=torch.long, device=device),
+    torch.tensor([[2, 1, 1, 1, 1, 1, 1, 1, 1, 3]], dtype=torch.long, device=device),
+    torch.tensor([[2, 1, 0, 1, 0, 1, 0, 1, 0, 3]], dtype=torch.long, device=device),
+    torch.tensor([[2, 0, 1, 0, 1, 0, 1, 0, 1, 3]], dtype=torch.long, device=device),
+    torch.tensor([[2, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 3]], dtype=torch.long, device=device),
+    torch.tensor([[2, 0, 1, 3]], dtype=torch.long, device=device)
+]
+
+for idx, example in enumerate(examples):
+    result = predict(model, example)
+    print(f"Example {idx}")
+    print(f"Input: {example.view(-1).tolist()[1:-1]}")
+    print(f"Continuation: {result[1:-1]}")
+    print(f"Shape: {result.shape}")
+    print()
