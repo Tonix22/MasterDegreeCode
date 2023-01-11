@@ -2,6 +2,7 @@ from Channel import Channel
 from QAM_mod import QAM
 import numpy as np
 from  math import log2
+from math import sqrt
 
 class RX():
     def __init__(self,constelation,bitstype):
@@ -30,5 +31,11 @@ class RX():
             self.Qsym.r[:,n] = self.H[:,:,n]@self.Qsym.GroundTruth[:,n]             
     
     def AWGN(self,SNR):
+        #Assume noise singal is 1
+        #Noise power
+        Pn = 1 / (10**(SNR/10))
         for n in range (0,self.total):
-            self.Qsym.r[:,n] += np.sqrt((10**(-SNR/10))/2)*(np.random.randn(self.sym_no,1) + 1j*np.random.randn(self.sym_no,1))
+            #Generate noise
+            noise = sqrt(Pn/2)* (np.random.randn(self.sym_no,1) + 1j*np.random.randn(self.sym_no,1))
+            Y     = self.H[:,:,n]@self.Qsym.GroundTruth[:,n]
+            self.Qsym.r[:,n] = Y+noise
