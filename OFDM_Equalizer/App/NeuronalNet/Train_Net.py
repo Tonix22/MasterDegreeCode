@@ -9,12 +9,14 @@ import os
 import sys
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
-report_path = main_path+"reports"
-model_path  = main_path+"models"
-
+sys.path.insert(0, main_path+"conf")
 sys.path.insert(0, main_path+"tools")
 
+from config import *
 from utils import get_time_string
+
+report_path = main_path+"reports"
+model_path  = main_path+"models/"+folder_training_model
 
 
 class TrainNet(NetLabs):
@@ -39,17 +41,26 @@ class TrainNet(NetLabs):
     def LMSE_Ground_Truth(self,i,SNR):
         Y = self.data.Qsym.r[:,i]
         H = np.matrix(self.data.H[:,:,i])
+        #EQUALIZATION FORCING
         LMMSE = np.linalg.inv(H.H@H+np.eye(48)*(10**(-SNR/10)))@H.H@Y
+        #Convert matrix to array and then to tensor
+        LMMSE = torch.tensor(np.asarray(LMMSE)).to(self.device)
+        
+        #NORMALIZING
+        z = torch.complex(LMMSE.real, LMMSE.imag)
+        norm = torch.abs(z).max()
+        z_normalized = z/norm
+        
         if(self.real_imag == COMPLEX):
-            return torch.from_numpy(LMMSE).to(self.device)
+            return z_normalized
         if(self.real_imag == REAL):
-            return torch.from_numpy(LMMSE.real).to(self.device)
+            return z_normalized.real
         if(self.real_imag == IMAG):
-            return torch.from_numpy(LMMSE.imag).to(self.device)
+            return z_normalized.imag
         if(self.real_imag == ANGLE):
-            return torch.from_numpy(np.angle(LMMSE)/pi).to(self.device)
+            return np.angle(z_normalized)/pi
         if(self.real_imag == ABS):
-            return torch.from_numpy(np.abs(LMMSE)).to(self.device)
+            return np.abs(z_normalized)
         if(self.real_imag == INV):
             channels = np.concatenate((LMMSE.real,LMMSE.imag),axis=0)
             channels = np.reshape(channels,(2,self.data.sym_no))
@@ -103,12 +114,14 @@ class TrainNet(NetLabs):
     def TrainMSE(self,epochs=3):
         df   = pd.DataFrame()
         pred = None
-        toogle_iter = 2
+        toogle_iter = 1
         if(self.toggle == True):
-            toogle_iter = 2
+            toogle_iter = 1
         
         for it in range(0,toogle_iter):# 2 if toggle required
             for SNR in range(self.BEST_SNR,self.WORST_SNR-1,self.step):
+                if SNR <= 30:
+                    epochs = 1
                 for epochs_range in range(0,epochs):
                     losses = []
                     self.r = self.Generate_SNR(SNR,self.real_imag)

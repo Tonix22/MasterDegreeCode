@@ -145,7 +145,7 @@ class TestNet(NetLabs):
                                 
                 #Status bar and monitor  
                 if(i % 500 == 0):
-                    loop.set_description(f"SNR [{SNR}] loss[{loss}]")
+                    loop.set_description(f"SNR [{SNR}]")
                     loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*frames))
                     #print(GPUtil.showUtilization())
                     

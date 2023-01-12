@@ -76,7 +76,7 @@ class NetLabs(object):
         NN = NN.to(self.device)
         
         # OPTIMIZER
-        self.optimizer = optim.Adam(NN.parameters(),lr=LEARNING_RATE,eps=EPSILON,weight_decay=1e-05)
+        self.optimizer = optim.Adam(NN.parameters(),lr=LEARNING_RATE,eps=EPSILON,weight_decay=1e-04)
         
         #LOSS TYPES
         if(self.loss_type == MSE_INV):
@@ -108,22 +108,30 @@ class NetLabs(object):
             H = np.matrix(self.data.H[:,:,i])
             Entry[:,i]=H.H@Y
         
-        if(real_imag == COMPLEX):
-            return torch.tensor(Entry, device  = torch.device(self.device)).type(torch.complex64)
+      
         
         r_real = torch.tensor(Entry.real,device  = torch.device(self.device),dtype=torch.float64)
         r_imag = torch.tensor(Entry.imag,device  = torch.device(self.device),dtype=torch.float64)
+        z = torch.complex(r_real, r_imag)
+        norm = torch.abs(z).max()
+        z_normalized = z/norm
+        
+        if(real_imag == COMPLEX):
+            return z_normalized.type(torch.complex64)
         
         if(real_imag == REAL):
-            r = (r_real - torch.min(r_real))/(torch.max(r_real) - torch.min(r_real))*2 - 1
-           #r = torch.nn.functional.normalize(r_real)
+           #r = (r_real - torch.min(r_real))/(torch.max(r_real) - torch.min(r_real))*2 - 1
+           r = torch.real(z_normalized)
         if(real_imag == IMAG):
-            r = (r_imag - torch.min(r_imag))/(torch.max(r_imag) - torch.min(r_imag))*2 - 1
-            #r = torch.nn.functional.normalize(r_imag)
+            #r = (r_imag - torch.min(r_imag))/(torch.max(r_imag) - torch.min(r_imag))*2 - 1
+            r = torch.imag(z_normalized)
         if(real_imag == BOTH):
-            rr = (r_real - torch.min(r_real))/(torch.max(r_real) - torch.min(r_real))*2 - 1
-            ri = (r_imag - torch.min(r_imag))/(torch.max(r_imag) - torch.min(r_imag))*2 - 1
+            #rr = (r_real - torch.min(r_real))/(torch.max(r_real) - torch.min(r_real))*2 - 1
+            #ri = (r_imag - torch.min(r_imag))/(torch.max(r_imag) - torch.min(r_imag))*2 - 1
+            rr = torch.real(z)
+            ri = torch.imag(z)
             r = torch.cat((rr,ri),0)
+            
         if(real_imag == ABS):
             r = torch.tensor(np.abs(Entry),device  = torch.device(self.device),dtype=torch.float64)
         if(real_imag == ANGLE):
