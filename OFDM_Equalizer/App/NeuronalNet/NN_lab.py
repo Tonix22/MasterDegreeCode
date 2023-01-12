@@ -50,6 +50,15 @@ class NetLabs(object):
         return torch.sum((target-output).abs())
     def Complex_MSE_polar(self,output,target):
         return torch.sum(torch.log(torch.pow(output.abs()/target.abs(),2))+torch.pow(output.angle()-target.angle(),2))
+    
+    def Degrees_MSE(self,output,target):
+        diff  = output-target
+        #check if theres is a value greater than 1
+        cond  = torch.where(diff >= 1)
+        if len(cond) != 0:
+            diff[cond] = diff[cond] - 1
+        squared_res = diff**2
+        return torch.mean(squared_res)
         
     
     def Generate_Network_Model(self):
@@ -84,6 +93,8 @@ class NetLabs(object):
         if(self.loss_type == MSE):
             if(self.real_imag == COMPLEX):
                 self.criterion  = self.Complex_MSE
+            elif(self.real_imag == ANGLE):
+                self.criterion = self.Degrees_MSE
             else:
                 self.criterion = nn.MSELoss()
             #self.criterion = nn.L1Loss()
