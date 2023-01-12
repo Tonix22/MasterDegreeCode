@@ -103,7 +103,7 @@ class TrainNet(NetLabs):
     def TrainMSE(self,epochs=3):
         df   = pd.DataFrame()
         pred = None
-        toogle_iter = 1
+        toogle_iter = 2
         if(self.toggle == True):
             toogle_iter = 2
         
@@ -123,8 +123,8 @@ class TrainNet(NetLabs):
                             else:
                                 Y  = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1)
                         else:    
-                            #Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
-                            Y   = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1) 
+                            Y  = torch.squeeze(self.gt[:,i],1) # ground thruth
+                            #Y   = torch.squeeze(self.LMSE_Ground_Truth(i,SNR),1) 
                             
                         if(self.loss_type == MSE_COMPLETE):
                             real = X[0:self.data.sym_no]

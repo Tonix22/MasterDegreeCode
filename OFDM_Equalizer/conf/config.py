@@ -9,8 +9,8 @@ MATH_PATH  = src+"Data/"
 
 pth_complete = base + "OFDM_Eq_SNR_(20_5)_(BOTH)_-8_12_2022-16_42.pth"
 
-pth1         = base + "OFDM_Eq_SNR_(40_20)_(REAL)_-9_12_2022-12_5.pth"
-pth2         = base + "OFDM_Eq_SNR_(40_20)_(IMAG)_-9_12_2022-12_7.pth"
+pth1         = base + "QPSK/Real/OFDM_Eq_SNR_(45_5)_(REAL)_-11_1_2023-20_29.pth"
+pth2         = base + "QPSK/Imag/OFDM_Eq_SNR_(45_5)_(IMAG)_-11_1_2023-20_29.pth"
 pth_QAM      = base + "Constelation-26_10_2022-16_49.pth"
 
 
@@ -22,8 +22,8 @@ pth_bce    = base + "OFDM_Eq_SNR_(40_20)_(FOUR)_-9_12_2022-11_35.pth"
 pth_complex = base +"OFDM_Eq_SNR_(45_25)_(COMPLEX)_-16_12_2022-0_57.pth"
 
 BEST_SNR   = 45
-WORST_SNR  = 25
-STEP_SNR   = -5
+WORST_SNR  = 5
+STEP_SNR   = -10
 EPOCHS     = 1
 LEARNING_RATE = .0005
 EPSILON = .005

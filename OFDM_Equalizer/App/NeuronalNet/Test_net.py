@@ -107,9 +107,10 @@ class TestNet(NetLabs):
         BER    = []
         for SNR in range(self.BEST_SNR,self.WORST_SNR-1,-1*self.step):
             self.r = self.Generate_SNR(SNR,BOTH)
-            loop   = tqdm(range(0,self.data.total),desc="Progress")
+            
+            loop   = tqdm(range(self.training_data,self.data.total),desc="Progress")
             errors = 0
-            frames = self.data.total # self.training_data
+            frames = self.data.total-self.training_data# self.training_data
             for i in loop:
                 
                 X  = torch.squeeze(self.r[:,i],1)  # input
@@ -118,6 +119,9 @@ class TestNet(NetLabs):
                 if(self.real_imag == BOTH):
                     pred_real = self.model_real(X[0:self.data.sym_no])
                     pred_imag = self.model_imag(X[self.data.sym_no:])
+                    loss_r = self.criterion(pred_real,Y[0:self.data.sym_no])
+                    loss_i = self.criterion(pred_imag,Y[self.data.sym_no:])
+                    loss = (loss_r + loss_i)/2
                 
                 #BER
                 if(self.loss_type == MSE):
@@ -141,7 +145,7 @@ class TestNet(NetLabs):
                                 
                 #Status bar and monitor  
                 if(i % 500 == 0):
-                    loop.set_description(f"SNR [{SNR}]")
+                    loop.set_description(f"SNR [{SNR}] loss[{loss}]")
                     loop.set_postfix(ber=errors/((self.data.bitsframe*self.data.sym_no)*frames))
                     #print(GPUtil.showUtilization())
                     

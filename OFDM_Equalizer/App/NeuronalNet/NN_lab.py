@@ -76,7 +76,7 @@ class NetLabs(object):
         NN = NN.to(self.device)
         
         # OPTIMIZER
-        self.optimizer = optim.Adam(NN.parameters(),lr=LEARNING_RATE,eps=EPSILON)
+        self.optimizer = optim.Adam(NN.parameters(),lr=LEARNING_RATE,eps=EPSILON,weight_decay=1e-05)
         
         #LOSS TYPES
         if(self.loss_type == MSE_INV):
@@ -114,12 +114,16 @@ class NetLabs(object):
         r_real = torch.tensor(Entry.real,device  = torch.device(self.device),dtype=torch.float64)
         r_imag = torch.tensor(Entry.imag,device  = torch.device(self.device),dtype=torch.float64)
         
-        if(real_imag == REAL):      
-           r = r_real
+        if(real_imag == REAL):
+            r = (r_real - torch.min(r_real))/(torch.max(r_real) - torch.min(r_real))*2 - 1
+           #r = torch.nn.functional.normalize(r_real)
         if(real_imag == IMAG):
-            r = r_imag
+            r = (r_imag - torch.min(r_imag))/(torch.max(r_imag) - torch.min(r_imag))*2 - 1
+            #r = torch.nn.functional.normalize(r_imag)
         if(real_imag == BOTH):
-            r = torch.cat((r_real,r_imag),0)
+            rr = (r_real - torch.min(r_real))/(torch.max(r_real) - torch.min(r_real))*2 - 1
+            ri = (r_imag - torch.min(r_imag))/(torch.max(r_imag) - torch.min(r_imag))*2 - 1
+            r = torch.cat((rr,ri),0)
         if(real_imag == ABS):
             r = torch.tensor(np.abs(Entry),device  = torch.device(self.device),dtype=torch.float64)
         if(real_imag == ANGLE):
