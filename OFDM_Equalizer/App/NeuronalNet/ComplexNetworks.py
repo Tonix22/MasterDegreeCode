@@ -36,28 +36,50 @@ class Encoder(nn.Module):
         super().__init__()
         
         ### Convolutional section
-        self.conv1 = ComplexConv2d(1, 8, 3, stride=2, padding=1)
-        self.conv2 = ComplexConv2d(8, 16, 3, stride=2, padding=1)
-        self.conv3 = ComplexBatchNorm2d(16)
+        #http://layer-calc.com/
+        #(1,48,48)->(4,48,48)
+        self.conv1 = ComplexConv2d(1, 4, 3, stride=1, padding=1)
+        self.conv2 = ComplexConv2d(4, 8, 3, stride=2, padding=1)
+        #NORM
+        self.norm1 = ComplexBatchNorm2d(8)
+        
+        #(4,48,48)->(8,24, 24)
+        self.conv3 = ComplexConv2d(8, 16, 3, stride=2, padding=1)
+        #(8,24, 24)->(16,12, 12)
+        self.norm2 = ComplexBatchNorm2d(16)
+        
+        #(16,12, 12)->(32,5, 5)
         self.conv4 = ComplexConv2d(16, 32, 3, stride=2, padding=0)
+        #(32,5, 5) -> (48,3, 3)
+        self.conv5 = ComplexConv2d(32, 48, 3, stride=1, padding=0)
+        #NORM
+        self.norm3 = ComplexBatchNorm2d(48)
         
         ### Flatten layer
         self.flatten = nn.Flatten(start_dim=1)
 
         ### Linear section
-        self.L1 = ComplexLinear(800, 128)
+        self.L1 = ComplexLinear(432, 128)
         self.L2 = ComplexLinear(128, encoded_space_dim)
         
-    def forward(self, x): # 1,1,48,48
+    def forward(self, x): 
         # cnn layers
-        x = self.conv1(x) # 1,8,24,24
-        x = complex_hardtanh(x)
-        x = self.conv2(x) #1,16,12,12
-        x = self.conv3(x)
-        x = complex_hardtanh(x)
-        x = self.conv4(x) #1,32,5,5
-        x = complex_hardtanh(x)
-
+        x = self.conv1(x)
+        x = complex_tanh(x)
+        x = self.conv2(x)
+        x = self.norm1(x) #NORM
+        
+        #conv 3
+        x = self.conv3(x) 
+        x = complex_tanh(x)
+        x = self.norm2(x) #NORM
+        
+        #conv 4,5
+        x = self.conv4(x)
+        x = complex_tanh(x)
+        x = self.conv5(x)
+        x = complex_tanh(x)
+        x = self.norm3(x) #NORM
         # flatten
         x = self.flatten(x)
 
@@ -73,15 +95,21 @@ class Decoder(nn.Module):
         super().__init__()
         self.L1 = ComplexLinear(encoded_space_dim, 128)
         self.L2 = ComplexLinear(128, 800)
-
         # unflatten 
-        self.unflatten = nn.Unflatten(dim=1, unflattened_size=(32, 5, 5))
-
-        self.conv1 = ComplexConvTranspose2d(32, 16, 3, stride=2, output_padding=1)
-        self.conv2 = ComplexBatchNorm2d(16)
-        self.conv3 = ComplexConvTranspose2d(16, 8, 3, stride=2, padding=1, output_padding=1)
-        self.conv4 = ComplexBatchNorm2d(8)
-        self.conv5 = ComplexConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1)
+        self.unflatten = nn.Unflatten(dim=1, unflattened_size=(48, 3, 3))
+        #(Hin-1)*stride+(k-1)+op+1
+        #(48, 3, 3)->(32, 5, 5)
+        self.conv1 = ComplexConvTranspose2d(48, 32, 3, stride=1, output_padding=0)
+        self.conv2 = ComplexBatchNorm2d(32)
+        #(32, 5, 5)->(16,12,12)
+        self.conv3 = ComplexConvTranspose2d(32, 16, 3, stride=2,output_padding=1)
+        self.conv4 = ComplexBatchNorm2d(16)
+        #(16,12,12)->(8,24, 24)
+        self.conv4 = ComplexConvTranspose2d(16, 8, 3, stride=2, padding=1, output_padding=1)
+        #(8,24, 24)->(4,48,48)
+        self.conv5 = ComplexConvTranspose2d(8, 4, 3, stride=2, padding=1, output_padding=1)
+        #(4,48,48)->(1,48,48)
+        self.conv6 = ComplexConvTranspose2d(4, 1, 3, stride=1, padding=1, output_padding=0)
         
     def forward(self, z):
         # from z to linear FC
