@@ -27,15 +27,16 @@ def train_loop(model, opt, loss_fn, dataloader):
     for chann,x in dataloader:
         
         Y = y_awgn(chann,x,45)
-        
+        chann = chann.unsqueeze(0)
+        chann = chann.permute(1,0,2,3)
         chann_hat,x_hat = model(chann,Y)
             
         loss_chann = loss_fn(chann_hat, chann)
-        loss_x     = loss_fn(x_hat,x)
+        loss_x     = loss_fn(x_hat,x) #TODO complex MSE polar
 
         opt.zero_grad()
-        loss_chann.backward()
-        loss_x.backwar()
+        loss_chann.backward(retain_graph=True)
+        loss_x.backward()
         opt.step()
     
         total_loss += loss_chann.detach().item()+loss_x.detach().item()
@@ -76,7 +77,7 @@ def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs):
     return train_loss_list, validation_loss_list
     
 
-def Complex_MSE(self,output,target):
+def Complex_MSE(output,target):
         return torch.sum((target-output).abs())
     
 def Complex_MSE_polar(output,target):
@@ -104,19 +105,22 @@ if __name__ == '__main__':
     #load data with QAM 16
     data   = RX(16,"Unit_Pow")
     dataset     = data
-    data_loader = DataLoader(dataset, batch_size=10, shuffle=True)
     # Define the split ratios (training, validation, testing)
     train_ratio = 0.6
     val_ratio   = 0.2
     test_ratio  = 0.2
     # Calculate the number of samples in each set
-    train_size = int(train_ratio * len(data_loader))
-    val_size   = int(val_ratio * len(data_loader))
-    test_size  = len(data_loader) - train_size - val_size
+    train_size = int(train_ratio * len(dataset))
+    val_size   = int(val_ratio * len(dataset))
+    test_size  = len(dataset) - train_size - val_size
     # Split the dataset
-    train_dataloader, val_dataloader, test_dataloader = random_split(data_loader, [train_size, val_size, test_size])
+    train_set, val_set, test_set = random_split(dataset, [train_size, val_size, test_size])
+    
+    train_loader = DataLoader(train_set, batch_size=10, shuffle=True)
+    val_loader   = DataLoader(val_set,   batch_size=10, shuffle=True)
+    test_loader  = DataLoader(test_set,  batch_size=10, shuffle=True)
 
     #define epochs
     epochs = 10
     #model fit
-    fit(model, optim, loss_fn, train_dataloader, val_dataloader, epochs)
+    fit(model, optim, loss_fn, train_loader, val_loader, epochs)

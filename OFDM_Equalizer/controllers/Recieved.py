@@ -50,5 +50,5 @@ class RX(Dataset):
     #Call AWGN befor call asigment to make sure you have the noise in data
     def __getitem__(self, idx):
         chann_tensor = torch.tensor(self.H[:,:,idx])
-        tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx])
+        tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex64)
         return chann_tensor,tx_tensor

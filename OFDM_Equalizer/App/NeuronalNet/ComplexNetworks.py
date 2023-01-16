@@ -94,7 +94,7 @@ class Decoder(nn.Module):
     def __init__(self, encoded_space_dim):
         super(Decoder,self).__init__()
         self.L1 = ComplexLinear(encoded_space_dim, 128)
-        self.L2 = ComplexLinear(128, 800)
+        self.L2 = ComplexLinear(128, 432)
         # unflatten 
         self.unflatten = nn.Unflatten(dim=1, unflattened_size=(48, 3, 3))
         #(Hin-1)*stride+(k-1)+op+1
@@ -127,6 +127,7 @@ class Decoder(nn.Module):
         x = self.conv4(x)
         x = complex_hardtanh(x)
         x = self.conv5(x)
+        x = self.conv6(x)
         return x
     
     
@@ -141,7 +142,7 @@ class Encode_plus_data(nn.Module):
     def forward(self, chann,y):
         latent    = self.encoder(chann)
         chann_hat = self.decoder(latent)
-        concat    = torch.cat((latent, y), dim=0)
+        concat    = torch.cat((latent, y), dim=1)
         out       = self.fc1(concat)
         out       = complex_tanh(out)
         out       = self.fc2(out)
