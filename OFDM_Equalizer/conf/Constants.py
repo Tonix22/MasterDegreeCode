@@ -17,9 +17,10 @@ TRAIN_BCE       = 12
 TEST_BCE        = 13
 TRAIN_COMPLEX   = 14
 TEST_COMPLEX    = 15
+TRAIN_AUTOENCONDER = 16
+TEST_AUTOENCONDER  = 17
 
 #real_imag
-
 REAL  = 0
 IMAG  = 1
 BOTH  = 2
@@ -28,6 +29,7 @@ ANGLE = 4
 INV   = 5
 FOUR  = 6
 COMPLEX = 7
+AUTOENCODER = 8
 
 real_imag_str = {
     REAL : "REAL", 
@@ -37,11 +39,11 @@ real_imag_str = {
     ANGLE : "ANGLE",
     INV   : "LMSE",
     FOUR  : "FOUR",
-    COMPLEX : "COMPLEX"
+    COMPLEX : "COMPLEX",
+    AUTOENCODER: "AUTOENCODER"
 }
 
 #loss_type
-
 MSE = 0
 CROSSENTROPY = 1
 MSE_COMPLETE = 2

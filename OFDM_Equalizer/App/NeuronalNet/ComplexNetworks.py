@@ -33,7 +33,7 @@ class ComplexNet(nn.Module):
 class Encoder(nn.Module):
     
     def __init__(self, encoded_space_dim):
-        super().__init__()
+        super(Encoder,self).__init__()
         
         ### Convolutional section
         #http://layer-calc.com/
@@ -92,7 +92,7 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     
     def __init__(self, encoded_space_dim):
-        super().__init__()
+        super(Decoder,self).__init__()
         self.L1 = ComplexLinear(encoded_space_dim, 128)
         self.L2 = ComplexLinear(128, 800)
         # unflatten 
@@ -130,3 +130,22 @@ class Decoder(nn.Module):
         return x
     
     
+class Encode_plus_data(nn.Module):
+    def __init__(self, encoded_space_dim):
+        super(Encode_plus_data,self).__init__()
+        self.encoder = Encoder(encoded_space_dim)
+        self.decoder = Decoder(encoded_space_dim)
+        self.fc1     = ComplexLinear(encoded_space_dim*2, int(encoded_space_dim*1.5))
+        self.fc2     = ComplexLinear(int(encoded_space_dim*1.5), encoded_space_dim)
+        
+    def forward(self, chann,y):
+        latent    = self.encoder(chann)
+        chann_hat = self.decoder(latent)
+        concat    = torch.cat((latent, y), dim=0)
+        out       = self.fc1(concat)
+        out       = complex_tanh(out)
+        out       = self.fc2(out)
+        return chann_hat,out
+        
+        
+        

@@ -4,6 +4,7 @@ import torch.nn as nn
 import numpy as np
 import torch.optim as optim
 
+
 from   tqdm import tqdm
 from   Networks import Inverse_Net,Linear_concat,AngleNet,MagNet,SymbolNet
 from ComplexNetworks import ComplexNet
@@ -25,33 +26,47 @@ from Constants import *
 from Recieved import RX
 
 
-#from torch.utils.tensorboard import SummaryWriter
 class NetLabs(object):
-    def __init__(self, loss_type=MSE,best_snr = 60,worst_snr = 5,toggle=False,step = -1,real_imag = REAL):
-        self.real_imag = real_imag
+    def __init__(self, loss_type=MSE,
+                       best_snr = 60,
+                       worst_snr = 5,
+                       toggle=False,
+                       step = -1,
+                       real_imag = REAL):
+        
+        #Noise gen and stepping
         self.BEST_SNR  = best_snr
         self.WORST_SNR = worst_snr
         self.step      = step
+        #Image type
+        self.real_imag = real_imag
+        #which loss type
         self.loss_type = loss_type
-        #Data set read
+        #Read RAW Data set
         self.data   = RX(16,"Unit_Pow")
+        #Select device
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        #Data numbers
+        #Data symbols to be sent thought the channel
         self.N = self.data.sym_no
-        #Training data lenght is only 80%
+        #Training data advice
         self.training_data = int(self.data.total*.8)
+        
+        #Toggle between hard aproach and inverse aproach
         self.toggle = toggle
-    
+        
+    #Custom Loss Functions
     def Complex_distance(self,output,target):
-        y = torch.column_stack((target.real,target.imag))
+        y    = torch.column_stack((target.real,target.imag))
         loss = torch.sqrt(torch.pow(torch.dist(output[:,0], y[:,0], 1),2)+torch.pow(torch.dist(output[:,1], y[:,1], 1),2))
         return loss
+    
     def Complex_MSE(self,output,target):
         return torch.sum((target-output).abs())
+    
     def Complex_MSE_polar(self,output,target):
         return torch.sum(torch.log(torch.pow(output.abs()/target.abs(),2))+torch.pow(output.angle()-target.angle(),2))
         
-    
+    #Model Loader, Optimizer, and Loss type
     def Generate_Network_Model(self):
         NN = None
         
@@ -63,13 +78,10 @@ class NetLabs(object):
                 NN  = MagNet(input_size=self.N, hidden_size=int(self.N*1.5)).double()
             elif(self.real_imag == COMPLEX):
                 NN  = ComplexNet(input_size=self.N,hidden_size=int(self.N*1.5))
-        
         if(self.loss_type == MSE_COMPLETE):
             NN  = Linear_concat(input_size=self.N, hidden_size=int(self.N*3)).double()
-
         if(self.loss_type == MSE_INV):
             NN = Inverse_Net(input_size=self.N)
-            
         if(self.loss_type == BCE):
             NN = SymbolNet(1<<self.data.bitsframe)
                 
@@ -95,12 +107,11 @@ class NetLabs(object):
             self.criterion = nn.MSELoss()
         if(self.loss_type == BCE):
             self.criterion = nn.BCELoss()
-        
         return NN        
 
     def Generate_SNR(self,SNR,real_imag):
         r = None
-        self.data.AWGN(SNR)
+        self.data.AWGN(SNR) #self.data.Qsym.r + noise
         #right side of equalizer
         Entry = np.empty((self.data.sym_no,self.data.total,1),dtype=self.data.Qsym.r.dtype)
         for i in range(0,self.data.total):
@@ -128,7 +139,6 @@ class NetLabs(object):
             abs   = torch.tensor(np.abs(Entry),device  = torch.device(self.device),dtype=torch.float64)
             angle = torch.tensor(np.angle(Entry)/pi,device  = torch.device(self.device),dtype=torch.float64)
             r     = torch.stack((r_real,r_imag,angle,abs),dim=2)
-        
         
         del Entry
         torch.cuda.empty_cache()

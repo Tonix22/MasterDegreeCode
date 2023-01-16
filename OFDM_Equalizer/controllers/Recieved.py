@@ -3,8 +3,11 @@ from QAM_mod import QAM
 import numpy as np
 from  math import log2
 from math import sqrt
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
 
-class RX():
+class RX(Dataset):
     def __init__(self,constelation,bitstype):
         #Channel Data set is of size 48
         self.bitsframe = int(log2(constelation))
@@ -39,3 +42,13 @@ class RX():
             noise = sqrt(Pn/2)* (np.random.randn(self.sym_no,1) + 1j*np.random.randn(self.sym_no,1))
             Y     = self.H[:,:,n]@self.Qsym.GroundTruth[:,n]
             self.Qsym.r[:,n] = Y+noise
+            
+    #Data loader functions
+    def __len__(self):
+        return self.total
+    
+    #Call AWGN befor call asigment to make sure you have the noise in data
+    def __getitem__(self, idx):
+        chann_tensor = torch.tensor(self.H[:,:,idx])
+        tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx])
+        return chann_tensor,tx_tensor
