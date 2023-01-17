@@ -26,6 +26,8 @@ class RX(Dataset):
         self.H[:,:,1::2] = self.NLOS.con_list
         #Collapse with channel
         self.Generate()
+        self.device  = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        self.power_factor = np.sum(np.abs(self.H)**2)/np.size(self.H) # Power of complex matrix H
     
     def Generate(self):
         #Swtiching verison
@@ -49,6 +51,6 @@ class RX(Dataset):
     
     #Call AWGN befor call asigment to make sure you have the noise in data
     def __getitem__(self, idx):
-        chann_tensor = torch.tensor(self.H[:,:,idx])
-        tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex64)
+        chann_tensor = torch.tensor(self.H[:,:,idx]/self.power_factor).to(self.device)
+        tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex64).to(self.device)
         return chann_tensor,tx_tensor

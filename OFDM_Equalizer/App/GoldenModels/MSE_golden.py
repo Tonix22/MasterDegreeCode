@@ -16,7 +16,11 @@ data = RX(4,"Data")
 BER    = []
 
 def LMSE(H,Y,SNR):
-    return np.linalg.inv(H.H@H+np.eye(48)*(10**(-SNR/10)))@H.H@Y
+    Ps = (np.sum(np.abs(Y)**2))/np.size(Y)
+    # Noise power
+    Pn = Ps / (10**(SNR/10))
+    # inverse
+    return np.linalg.inv(H.H@H+np.eye(48)*Pn)@H.H@Y
    
 def MSE(H,Y,SNR):
     return np.linalg.inv(H.H@H)@H.H@Y

@@ -22,7 +22,7 @@ step      = -5
 
 GOLDEN_BEST_SNR  = 45
 GOLDEN_WORST_SNR = 5
-GOLDEN_STEP      = -2
+GOLDEN_STEP      = -10
 
 BATCHSIZE = 10
 
@@ -33,14 +33,16 @@ def Complex_MSE_polar(output,target):
     return torch.sum(torch.log(torch.pow(output.abs()/target.abs(),2))+torch.pow(output.angle()-target.angle(),2))
 
 def y_awgn(H,x,SNR):
-    # Assume noise singal is 1
-    # Noise power
-    Pn = 1 / (10**(SNR/10))
-    # Generate noise
-    noise = sqrt(Pn/2)* torch.complex(torch.randn(x.shape),torch.randn((x.shape)))
-    # multiply tensors
     Y = torch.einsum("ijk,ik->ij", [H, x])
-    Y +=noise
+    # Signal Power
+    Ps = (torch.sum(torch.abs(Y)**2))/torch.numel(Y)
+    # Noise power
+    Pn = Ps / (10**(SNR/10))
+    # Generate noise
+    noise = sqrt(Pn/2)* torch.complex(torch.randn(x.shape),torch.randn((x.shape))).to(H.device)
+    # multiply tensors
+    
+    Y = Y + noise
     return Y
 
 def train_loop(model, opt, loss_fn, dataloader):
@@ -88,7 +90,7 @@ def validation_loop(model, dataloader,data):
                 chann = chann.permute(1,0,2,3)
                 _,x_hat = model(chann,Y)
                 tx_bits = data.Qsym.Demod(x_hat.cpu().detach().numpy()).astype(np.uint8)
-                rx_bits = data.Qsym.Demod(Y.cpu().detach().numpy()).astype(np.uint8)
+                rx_bits = data.Qsym.Demod(x.cpu().detach().numpy()).astype(np.uint8)
                 errors+=np.unpackbits((tx_bits^rx_bits).view('uint8')).sum()
                 
                 if(idx %100 == 0):
