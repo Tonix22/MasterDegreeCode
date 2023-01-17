@@ -49,7 +49,11 @@ def validation_loop(model, loss_fn, dataloader):
     with torch.no_grad():
         for chann,x in dataloader:
             Y = y_awgn(chann,x,45)
+            chann = chann.unsqueeze(0)
+            chann = chann.permute(1,0,2,3)
+        
             chann_hat,x_hat = model(chann,Y)
+            
             loss_chann = loss_fn(chann_hat, chann)
             loss_x     = loss_fn(x_hat,x)
             total_loss += loss_chann.detach().item()+loss_x.detach().item()
