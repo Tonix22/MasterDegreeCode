@@ -116,16 +116,16 @@ class Decoder(nn.Module):
         x = self.L1(z)
         x = complex_hardtanh(x)
         x = self.L2(x)
-        x = complex_hardtanh(x)
+        x = complex_tanh(x)
         # unflatten
         x = self.unflatten(x)
         #Conv stage decoder
         x = self.conv1(x)
         x = self.conv2(x)
-        x = complex_hardtanh(x)
+        x = complex_tanh(x)
         x = self.conv3(x)
         x = self.conv4(x)
-        x = complex_hardtanh(x)
+        x = complex_tanh(x)
         x = self.conv5(x)
         x = self.conv6(x)
         return x
@@ -143,8 +143,9 @@ class Encode_plus_data(nn.Module):
         latent    = self.encoder(chann)
         chann_hat = self.decoder(latent)
         concat    = torch.cat((latent, y), dim=1)
-        out       = self.fc1(concat)
-        out       = complex_tanh(out)
+        out       = complex_hardtanh(concat)
+        out       = self.fc1(out)
+        out       = complex_hardtanh(out)
         out       = self.fc2(out)
         return chann_hat,out
         
