@@ -51,6 +51,13 @@ class RX(Dataset):
     
     #Call AWGN befor call asigment to make sure you have the noise in data
     def __getitem__(self, idx):
-        chann_tensor = torch.tensor(self.H[:,:,idx]/self.power_factor).to(self.device)
+        #Normalize tensor
+        norm_H       = self.H[:,:,idx]/self.power_factor
+        #norm_H        = self.H[:,:,idx]
+        #extract both parts
+        chann_real   = torch.tensor(norm_H.real).to(self.device).unsqueeze(-1)
+        chann_imag   = torch.tensor(norm_H.imag).to(self.device).unsqueeze(-1)        
+        #Final tensor (48,48,2) of two channels
+        chann_tensor = torch.cat((chann_real, chann_imag), dim=2)
         tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex64).to(self.device)
         return chann_tensor,tx_tensor

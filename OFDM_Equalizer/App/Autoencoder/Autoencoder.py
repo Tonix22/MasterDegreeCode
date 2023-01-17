@@ -8,14 +8,13 @@ import matplotlib.pyplot as plt
 from  tqdm import tqdm
 import numpy as np
 import pandas as pd
-
+from EncoderDecoder import AutoencoderNN
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 sys.path.insert(0, main_path+"App/NeuronalNet")
 
-from ComplexNetworks import Encoder, Decoder
 from Recieved import RX
 from utils import get_time_string
 
@@ -49,9 +48,7 @@ def y_awgn(H,x,SNR):
     return Y
 
 def train_loop(model, opt, loss_fn, dataloader):
-    #models
-    enconder = model[0].train()
-    decoder  = model[1].train()
+    model.train()
     #Total loss
     total_loss = 0
     loop = tqdm(dataloader)
@@ -59,16 +56,14 @@ def train_loop(model, opt, loss_fn, dataloader):
     for idx, (chann, x) in enumerate(loop):
         
         #chann preparation
-        chann = chann.unsqueeze(0)
-        chann = chann.permute(1,0,2,3)
+        chann = chann.permute(0,3,1,2)
         #auto encoder
-        z         = enconder(chann)
-        chann_hat = decoder(z)
+        z,chann_hat = model(chann)
         #calculate loss
         loss_chann = loss_fn(chann_hat, chann)
         #optimzer 
         opt.zero_grad()
-        loss_chann.backward(retain_graph=True)
+        loss_chann.backward()
         opt.step()
         #description
         if(idx %50 == 0):
@@ -80,37 +75,27 @@ def train_loop(model, opt, loss_fn, dataloader):
     return total_loss / (len(dataloader))
 
 def validation_loop(model, dataloader,data):
-    #models
-    encoder = model[0].train()
-    decoder  = model[1].train()
-    
-    encoder.eval()
-    decoder.eval()
-    
-    iter_times = 0
-    BER        = []
-    for SNR in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP):
-        loop = tqdm(dataloader)
-        iter_times+=1
-        errors = 0
-        with torch.no_grad():
-            for idx, (chann, x) in enumerate(loop):
-                Y = y_awgn(chann,x,SNR)
-                chann = chann.unsqueeze(0)
-                chann = chann.permute(1,0,2,3)
-                #channel compresion
-                z         = encoder(chann)
-                x_hat     = Y/z
-                tx_bits = data.Qsym.Demod(x_hat.cpu().detach().numpy()).astype(np.uint8)
-                rx_bits = data.Qsym.Demod(x.cpu().detach().numpy()).astype(np.uint8)
-                errors+=np.unpackbits((tx_bits^rx_bits).view('uint8')).sum()
-                
-                if(idx %49 == 0):
-                    loop.set_description(f"SNR [{SNR}]]")
-                    loop.set_postfix(ber=errors/((data.bitsframe*data.sym_no)*len(dataloader)*BATCHSIZE))
-        BER.append(errors/((data.bitsframe*data.sym_no)*len(dataloader)*BATCHSIZE))
+    #models    
+    model.eval()
+    loop = tqdm(dataloader)
+    total_loss = 0
+    with torch.no_grad():
+        for idx, (chann, x) in enumerate(loop):
+            #chann preparation
+            chann = chann.permute(0,3,1,2)
+            #auto encoder
+            z,chann_hat = model(chann)
+            #calculate loss
+            loss_chann = loss_fn(chann_hat, chann)
+            #description
+            if(idx %50 == 0):
+                loop.set_postfix(loss=loss_chann.detach().item())
             
-    return BER # average loss
+            #calculating total loss
+            total_loss += loss_chann.detach().item()
+        
+    return total_loss / (len(dataloader))
+
 
 def test(model, loss_fn, dataloader):
     model.eval()
@@ -145,29 +130,16 @@ def fit(model, opt, loss_fn, train_dataloader, val_dataloader, epochs,data):
         print("-"*25, f"Epoch {epoch + 1}","-"*25)
         
         train_loss = train_loop(model, opt, loss_fn, train_dataloader)
+        train_loss_list.append(train_loss)
+        
         if((epoch+1) %5 == 0):
             train_loss_list += [train_loss]
             print("_"*10, f"validation","_"*10)
             validation_loss = validation_loop(model, val_dataloader,data)
-            
-            # Check if the file exists
-            if os.path.isfile('Ber_val_data.csv'):
-                # Read the existing CSV file into a DataFrame
-                df = pd.read_csv('Ber_val_data.csv')
-            else:
-                # Create a new empty DataFrame
-                df = pd.DataFrame()
-        
-            # Convert the list to a pandas Series
-            s = pd.Series(validation_loss)
-            # Append the Series to the DataFrame
-            df = pd.concat([df, s], axis=1)
-            # Save the DataFrame back to the CSV file
-            df.to_csv('Ber_val_data.csv', index=False)
-
+            print(f"Validation loss: {validation_loss:.4f}")
+            validation_loss_list.append(validation_loss)
         
         print(f"Training loss: {train_loss:.4f}")
-        #print(f"Validation loss: {validation_loss:.4f}")
         print()
         
     return train_loss_list, validation_loss_list
@@ -181,8 +153,19 @@ def plot_results(train_loss_list,validation_loss_list):
     plt.title('Loss vs Epoch')
     plt.legend()
     plt.show()
- 
 
+def plot_histogram(train_dataloader):
+    bins = 50
+    # Initialize an array to store the histogram
+    histogram = torch.zeros(bins)
+
+    # Iterate over the Dataloader
+    for i, (chann,x) in enumerate(train_dataloader):
+        #Compute the histogram
+        histogram += torch.histc(chann.cpu(), bins=bins, min=-1, max=1)
+    
+    plt.bar(range(bins), histogram)
+    plt.savefig('TrainingData_hist.png')
 
 
 if __name__ == '__main__':
@@ -190,30 +173,24 @@ if __name__ == '__main__':
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     
     ### Define the loss function
-    loss_fn = Complex_MSE
+    loss_fn = torch.nn.MSELoss()
     ### Define an optimizer (both for the encoder and the decoder!)
-    lr= 0.001
+    lr= 0.0005
     ### Set the random seed for reproducible results
     torch.manual_seed(0)
     ### Initialize the model
     d = 48
-    encoder = Encoder(encoded_space_dim=d)
-    decoder = Decoder(encoded_space_dim=d)
-    encoder.to(device)
-    decoder.to(device)
-    model = (encoder,decoder)
-    params_to_optimize = [
-    {'params': encoder.parameters()},
-    {'params': decoder.parameters()}
-    ]
+    model = AutoencoderNN(96)
+    model.to(device)
+    
     ### Optimizer
-    optim = torch.optim.Adam(params_to_optimize,lr=lr,weight_decay=1e-4,eps=.01)
+    optim = torch.optim.Adam(model.parameters(),lr=lr,weight_decay=1e-5,eps=.005)
 
     #fix sed for split dataloader 
     torch.manual_seed(0)
 
     #load data with QAM 16
-    data   = RX(16,"Norm")
+    data   = RX(16,"Unit_Pow")
     dataset     = data
     # Define the split ratios (training, validation, testing)
     train_ratio = 0.6
@@ -230,13 +207,15 @@ if __name__ == '__main__':
     val_loader   = DataLoader(val_set,   batch_size=BATCHSIZE, shuffle=True)
     test_loader  = DataLoader(test_set,  batch_size=BATCHSIZE, shuffle=True)
     
-
+    plot_histogram(train_loader)
+    
+    """
     #define epochs
     epochs = 50
     #model fit
     train_loss_list, validation_loss_list = fit(model, optim, loss_fn, train_loader, val_loader, epochs,data)
     #save model
     formating = "Enconder_{}".format(get_time_string())
-    torch.save(model[0].state_dict(),"{}/OFDM_Eq_Enconder{}.pth".format(formating))
-    torch.save(model[1].state_dict(),"{}/OFDM_Eq_Decoder{}.pth".format(formating))
+    torch.save(model.state_dict(),"OFDM_Eq_AutoEnconder_{}.pth".format(formating))
     #test(model,loss_fn)
+    """
