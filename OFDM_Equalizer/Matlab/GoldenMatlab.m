@@ -3,12 +3,18 @@ clear all;
 loadmatlab;
 
 % QAM DATA
-modorder            = 4;  %constelation size
+modorder            = 16;  %constelation size
 
 SNRVECT = 5:2:45;
 BER_MSE  = zeros(numel(SNRVECT),1);
 BER_LMSE = zeros(numel(SNRVECT),1);
 frames   = 4000;
+
+%& extract normalizing factor
+H_gen  = cat(3, LOS, NLOS);
+Ph     = sum(abs(H_gen(:)).^2)/numel(H_gen);
+H_norm = H_gen/Ph;
+
 for SNR=SNRVECT
     errors_MSE = 0;
     errors_LMSE = 0;
@@ -27,13 +33,14 @@ for SNR=SNRVECT
         txbits    = randi([0 1],size(LOS,1)*log2(modorder),1);
         X = qammod(txbits, modorder, 'gray', 'InputType', 'bit','UnitAveragePower', true);
 
+        H = H/Ph;
         %Channel matrix multiply
         Y = H*X;
 
         % Signal Power
-        %Ps = sum(abs(Y).^2) / length(Y);
+        Ps = sum(abs(Y).^2) / length(Y);
         % Noise power
-        Pn = 1 / (10^(SNR/10));
+        Pn = Ps / (10^(SNR/10));
         % Generate noise
         n   = sqrt(Pn/2)* complex(randn(size(Y)), randn(size(Y)));
         %y_n = awgn(Y,SNR);
@@ -44,7 +51,7 @@ for SNR=SNRVECT
         %MMSE
         X_hat_MSE  = inv(H'*H)*H'*y_n; %MSE
         %LMMSE
-        X_hat_LMSE = inv(H'*H+eye(48)*(10^(-SNR/10)))*H'*y_n; %LMSE
+        X_hat_LMSE = inv(H'*H+eye(48)*Pn)*H'*y_n; %LMSE
         
         rxbits_MSE = qamdemod(X_hat_MSE, modorder, 'gray', 'OutputType', 'bit','UnitAveragePower', true);
         rxbits_LMSE = qamdemod(X_hat_LMSE, modorder, 'gray', 'OutputType', 'bit','UnitAveragePower', true);
@@ -74,7 +81,7 @@ t = datetime('now');
 t.Format = 'MMM_dd_yyyy-HH_mm_ss';
 name =  strcat('plots/GolderMatlab_Ber_',string(t));
 jpg  = strcat(name,'.jpg')
-
+legend('LS','LMMSE')
 saveas(figure1,jpg)
 
 
