@@ -182,6 +182,11 @@ if __name__ == '__main__':
     d = 48
     model = AutoencoderNN(96)
     model.to(device)
+    pth_file = 'OFDM_Eq_AutoEnconder_Enconder_-17_1_2023-22_7.pth'
+    # Check if the .pth file exists
+    if os.path.isfile(pth_file):
+        # If it exists, load the weights from the .pth file
+        model.load_state_dict(torch.load(pth_file))
     
     ### Optimizer
     optim = torch.optim.Adam(model.parameters(),lr=lr,weight_decay=1e-5,eps=.005)
@@ -207,15 +212,15 @@ if __name__ == '__main__':
     val_loader   = DataLoader(val_set,   batch_size=BATCHSIZE, shuffle=True)
     test_loader  = DataLoader(test_set,  batch_size=BATCHSIZE, shuffle=True)
     
-    plot_histogram(train_loader)
+    #plot_histogram(train_loader)
     
-    """
+    
     #define epochs
-    epochs = 50
+    epochs = 100
     #model fit
     train_loss_list, validation_loss_list = fit(model, optim, loss_fn, train_loader, val_loader, epochs,data)
     #save model
     formating = "Enconder_{}".format(get_time_string())
     torch.save(model.state_dict(),"OFDM_Eq_AutoEnconder_{}.pth".format(formating))
     #test(model,loss_fn)
-    """
+    
