@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
 sys.path.insert(0, main_path+"controllers")
-from Recieved import RX
+from Recieved import RX,Rx_loader
 
 #Hyperparameters
 BATCHSIZE  = 10
@@ -107,28 +107,12 @@ class Decoder(nn.Module):
         x = self.decoder_conv(x)
         return x
     
-class VariationalAutoencoder(pl.LightningModule):
+class VariationalAutoencoder(pl.LightningModule,Rx_loader):
     def __init__(self, latent_dims):
-        super().__init__()
+        pl.LightningModule.__init__(self)
+        Rx_loader.__init__(self,NUM_EPOCHS) #Rx_loader constructor
         self.encoder = VariationalEncoder(latent_dims)
         self.decoder = Decoder(latent_dims)
-        self.data    = RX(16,"Unit_Pow")
-        self.init_loader()
-        
-    def init_loader(self):
-        # Define the split ratios (training, validation, testing)
-        train_ratio = 0.6
-        val_ratio   = 0.2
-        test_ratio  = 0.2
-        # Calculate the number of samples in each set
-        train_size = int(train_ratio * len(self.data))
-        val_size   = int(val_ratio * len(self.data))
-        test_size  = len(self.data) - train_size - val_size
-        # Split the dataset
-        train_set, val_set, test_set = random_split(self.data, [train_size, val_size, test_size])
-        self.train_loader = DataLoader(train_set, batch_size=BATCHSIZE, shuffle=False)
-        self.val_loader   = DataLoader(val_set,   batch_size=BATCHSIZE, shuffle=False)
-        self.test_loader  = DataLoader(test_set,  batch_size=BATCHSIZE, shuffle=False)
 
     def forward(self, x):
         z = self.encoder(x)
@@ -164,13 +148,10 @@ class VariationalAutoencoder(pl.LightningModule):
         self.log("avg_val_loss", avg_loss) #tensorboard logs
         return {'val_loss':avg_loss}
     
-    def train_dataloader(self):
-        return self.train_loader
-    
-    def val_dataloader(self):
-        return self.val_loader
-    
 if __name__ == '__main__':
     trainer = Trainer(callbacks=[TQDMProgressBar(refresh_rate=100)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+    #MyLightningModule.load_from_checkpoint("/path/to/checkpoint.ckpt")
     model   = VariationalAutoencoder(48)
-    trainer.fit(model) 
+    #trainer.fit(model)
+    #checkpoint = torch.load('/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder_VAE/lightning_logs/version_1/checkpoints/epoch=499-step=600000.ckpt')
+    #print(checkpoint.keys())

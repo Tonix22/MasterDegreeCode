@@ -5,7 +5,7 @@ from  math import log2
 from math import sqrt
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset,DataLoader, random_split
 
 class RX(Dataset):
     def __init__(self,constelation,bitstype):
@@ -61,3 +61,30 @@ class RX(Dataset):
         chann_tensor = torch.cat((chann_real, chann_imag), dim=2)
         tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex64).to(self.device)
         return chann_tensor,tx_tensor
+    
+    
+class Rx_loader:
+    def __init__(self,batch_size):
+        self.data    = RX(16,"Unit_Pow")
+        # Define the split ratios (training, validation, testing)
+        train_ratio = 0.6
+        val_ratio   = 0.2
+        test_ratio  = 0.2
+        # Calculate the number of samples in each set
+        train_size = int(train_ratio * len(self.data))
+        val_size   = int(val_ratio * len(self.data))
+        test_size  = len(self.data) - train_size - val_size
+        # Split the dataset
+        train_set, val_set, test_set = random_split(self.data, [train_size, val_size, test_size])
+        self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
+        self.val_loader   = DataLoader(val_set,   batch_size=batch_size, shuffle=False)
+        self.test_loader  = DataLoader(test_set,  batch_size=batch_size, shuffle=False)
+        
+    def train_dataloader(self):
+            return self.train_loader
+        
+    def val_dataloader(self):
+        return self.val_loader
+    
+    def test_dataloader(self):
+        return self.test_loader
