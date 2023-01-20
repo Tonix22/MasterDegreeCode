@@ -110,7 +110,7 @@ class Decoder(nn.Module):
 class VariationalAutoencoder(pl.LightningModule,Rx_loader):
     def __init__(self, latent_dims):
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,NUM_EPOCHS) #Rx_loader constructor
+        Rx_loader.__init__(self,BATCHSIZE) #Rx_loader constructor
         self.encoder = VariationalEncoder(latent_dims)
         self.decoder = Decoder(latent_dims)
 
@@ -148,10 +148,20 @@ class VariationalAutoencoder(pl.LightningModule,Rx_loader):
         self.log("avg_val_loss", avg_loss) #tensorboard logs
         return {'val_loss':avg_loss}
     
+    def train_dataloader(self):
+        return self.train_loader
+        
+    def val_dataloader(self):
+        return self.val_loader
+    
+    def test_dataloader(self):
+        return self.test_loader
+    
 if __name__ == '__main__':
-    trainer = Trainer(callbacks=[TQDMProgressBar(refresh_rate=100)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(callbacks=[TQDMProgressBar(refresh_rate=100)],auto_lr_find=True, max_epochs=NUM_EPOCHS+100)
     #MyLightningModule.load_from_checkpoint("/path/to/checkpoint.ckpt")
     model   = VariationalAutoencoder(48)
     #trainer.fit(model)
+    trainer.fit(model,ckpt_path='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder_VAE/lightning_logs/version_1/checkpoints/epoch=499-step=600000.ckpt')
     #checkpoint = torch.load('/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder_VAE/lightning_logs/version_1/checkpoints/epoch=499-step=600000.ckpt')
     #print(checkpoint.keys())

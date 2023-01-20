@@ -63,7 +63,7 @@ class RX(Dataset):
         return chann_tensor,tx_tensor
     
     
-class Rx_loader:
+class Rx_loader(object):
     def __init__(self,batch_size):
         self.data    = RX(16,"Unit_Pow")
         # Define the split ratios (training, validation, testing)
@@ -80,11 +80,3 @@ class Rx_loader:
         self.val_loader   = DataLoader(val_set,   batch_size=batch_size, shuffle=False)
         self.test_loader  = DataLoader(test_set,  batch_size=batch_size, shuffle=False)
         
-    def train_dataloader(self):
-            return self.train_loader
-        
-    def val_dataloader(self):
-        return self.val_loader
-    
-    def test_dataloader(self):
-        return self.test_loader
