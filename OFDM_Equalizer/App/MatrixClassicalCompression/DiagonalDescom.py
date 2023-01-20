@@ -1,29 +1,26 @@
+#%% 
 import torch
-x = torch.tensor([[[1, 2, 3], 
-                  [4, 5, 6], 
-                  [7, 8, 9]],
-                 [[1, 2, 3], 
-                  [4, 5, 6], 
-                  [7, 8, 9]]])
 
-def vect_diagonals(matrix):
-    # Concatenate diagonals into a tensor
-    off_diag = torch.cat([torch.diag(matrix, i) for i in range(-1, 2)])
-    print(off_diag)
+#%% take symetrically diagonals
+def vect_diagonals(matrix,diagonals):
+    #Concatenate diagonals into a tensor
+    off_diag = torch.cat([torch.diag(matrix, i) for i in range(-diagonals, diagonals+1)])
+    return off_diag
 
 
-# Create a 4D tensor with dimensions 2x3x4x5
-tensor_4d = torch.randn(10, 2, 3, 3)
+# Create a 4D tensor with dimensions
+# Batch size = 10, Channels 2, Matrix 3x3
+tensor_4d   = torch.randint(1,100,(10, 2, 4, 4))
+diagonals   = 1
+dummy_diag  = vect_diagonals(tensor_4d[0, 0, :, :],diagonals)
+dummy_shape = len(dummy_diag)
 
-# Extract a matrix at index (0,1,:,:)
-image = 0
-channel = 1
-matrix = tensor_4d[image, channel, :, :]
-# Extract all matrices along the batch dimension
-matrices = torch.unbind(tensor_4d, dim=0)
+proccesed = torch.zeros((10,2,dummy_shape))
+#%%
+##Extract a matrix at index (0,1,:,:)
+for image in range(0,10):
+    
+    for channel in range(0,2):
+        proccesed[image,channel,:] = vect_diagonals(tensor_4d[image, channel, :, :],diagonals)
 
-# Iterate through the matrices
-for i, matrix in enumerate(matrices):
-    print("Matrix {}:".format(i))
-    print(matrix[0])
-    vect_diagonals(matrix[0])
+
