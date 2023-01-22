@@ -10,7 +10,7 @@ from pytorch_lightning.callbacks import TQDMProgressBar
 import math
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
-main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
+main_path = os.path.dirname(os.path.abspath(__file__))+"/../../../"
 sys.path.insert(0, main_path+"controllers")
 from Recieved import RX,Rx_loader
 
@@ -75,13 +75,13 @@ class Transformer(nn.Module):
 
         # LAYERS
         self.positional_encoder = PositionalEncoding(
-            dim_model = 2, 
+            dim_model = dim_model, 
             dropout_p = dropout_p, 
-            max_len   = 48)
+            max_len   = 5000)
         
         #contains num_tokens of dim_model size
         #2 is legacy from IQ data 
-        self.embedding         = nn.Embedding(num_tokens, 2)
+        self.embedding         = nn.Embedding(num_tokens, 2,max_norm=1)
         self.transformer       = nn.Transformer(
             d_model            = dim_model,
             nhead              = num_heads,
@@ -89,31 +89,46 @@ class Transformer(nn.Module):
             num_decoder_layers = num_decoder_layers,
             dropout            = dropout_p,
         )
-        self.out = nn.Linear(dim_model, num_tokens)
+        self.extend_src = nn.Linear(2,dim_model)
+        self.extend_tgt = nn.Linear(2,dim_model)
+        self.out        = nn.Linear(dim_model, num_tokens)
 
-    def y_awgn(H,x,SNR):
-        #TODO COMPLEX MULTPILE WITH INDEPENDENT STAGES
-        Y = torch.einsum("ijk,ik->ij", [H, x])
+    #TODO testme
+    def y_awgn(self,H,x,SNR):
+        real = 0
+        imag = 1
+        Yreal = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, real]) - \
+                torch.einsum('bjk,bk->bj', H[:, imag, :, :], x[:, :, imag])
+                
+        Yimag = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, imag]) + \
+                torch.einsum('bjk,bk->bj', H[:, imag, :, :], x[:, :, real])
+        
+        distance = torch.pow(Yreal,2) + torch.pow(Yimag,2)
+        
         # Signal Power
-        Ps = (torch.sum(torch.abs(Y)**2))/torch.numel(Y)
+        Ps = (torch.sum(distance))/torch.numel(Yreal)
         # Noise power
         Pn = Ps / (10**(SNR/10))
         # Generate noise
-        noise = torch.sqrt(Pn/2)* torch.complex(torch.randn(x.shape),torch.randn((x.shape))).to(H.device)
+        noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape,requires_grad=True)
+        noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape,requires_grad=True)
         # multiply tensors
-        
-        Y = Y + noise
-        return Y
+        return torch.stack([Yreal + noise_real,Yimag + noise_imag],dim=2)
     
     def forward(self, src, tgt,H,SNR,tgt_mask=None, src_pad_mask=None, tgt_pad_mask=None):
         # Src size must be (batch_size, src sequence length)
+        # H   size must be (batch_size, chann, height, width)
         # Tgt size must be (batch_size, tgt sequence length)
 
         # Embedding + positional encoding - Out size = (batch_size, sequence length, dim_model)
         src = self.embedding(src) * math.sqrt(2)
-        #src = H*src+w
+        src = self.y_awgn(H,src,SNR) # pass source trought the channel and noise
+        src = self.extend_src(src) # hight dimension of model
         
+        #target built
         tgt = self.embedding(tgt) * math.sqrt(2)
+        tgt = self.extend_tgt(tgt)
+        
         #positional enconder
         src = self.positional_encoder(src)
         tgt = self.positional_encoder(tgt)
@@ -122,11 +137,9 @@ class Transformer(nn.Module):
         # to obtain size (sequence length, batch_size, dim_model),
         src = src.permute(1,0,2)
         tgt = tgt.permute(1,0,2)
-        #TODO CHECK IF DATA CAN FEED TRANSFORMER
         # Transformer blocks - Out size = (sequence length, batch_size, num_tokens)
         transformer_out = self.transformer(src, tgt, tgt_mask=tgt_mask, src_key_padding_mask=src_pad_mask, tgt_key_padding_mask=tgt_pad_mask)
         out = self.out(transformer_out)
-        
         return out
       
     def get_tgt_mask(self, size) -> torch.tensor:
@@ -164,34 +177,52 @@ class ComTransformer(pl.LightningModule,Rx_loader):
             5,# Decoder  Layers
             dropout_p=0.1
         )
+        self.loss_f = torch.nn.CrossEntropyLoss()
         
-    def forward(self,data,H):
-        
+    def forward(self,data,H,SNR,tgt_mask=None):
+        return self.transformer(data,data,H,SNR,tgt_mask=tgt_mask)
         
     def configure_optimizers(self): 
         return torch.optim.Adam(self.parameters(),lr=0.0005,weight_decay=1e-5,eps=.005)
     
     def training_step(self, batch, batch_idx):
-        data_tensor = torch.randint(0, self.constelation-1, (BATCHSIZE,self.data.sym_no), dtype=torch.long)
+        SNR = (30-self.current_epoch)%31 +5
+        x = torch.randint(0, self.constelation-1, (BATCHSIZE,self.data.sym_no), dtype=torch.int64)
         # training_step defines the train loop. It is independent of forward
-        chann, x = batch
+        chann, _ = batch
         #chann preparation
-        chann = chann.permute(0,3,1,2)
+        chann    = chann.permute(0,3,1,2)
+        
+        # Get mask to mask out the next words
+        sequence_length = x.size(1)
+        tgt_mask = self.transformer.get_tgt_mask(sequence_length)
+        
         #auto encoder
-        z,chann_hat = self(data_tensor,chann) #model eval
-        loss        = self.loss_f(chann,chann_hat)
+        x_hat = self(x,chann,SNR,tgt_mask=tgt_mask) #model eval
+        x_hat = x_hat.permute(1, 2, 0)
+        loss  = self.loss_f(x_hat,x)
         
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
+        SNR = (30-self.current_epoch)%31 +5
+        x = torch.randint(0, self.constelation-1, (BATCHSIZE,self.data.sym_no), dtype=torch.int64)
         # training_step defines the train loop. It is independent of forward
-        chann, x = batch
+        chann, _ = batch
         #chann preparation
-        chann = chann.permute(0,3,1,2)
+        chann    = chann.permute(0,3,1,2)
+        
+        # Get mask to mask out the next words
+        sequence_length = x.size(1)
+        tgt_mask = self.transformer.get_tgt_mask(sequence_length)
+        
         #auto encoder
-        z,chann_hat = self(chann)
-        loss        = self.loss_f(chann,chann_hat)
+        x_hat = self(x,chann,SNR,tgt_mask=tgt_mask) #model eval
+        x_hat = x_hat.permute(1, 2, 0)
+        loss  = self.loss_f(x_hat,x)
+        
+        self.log("train_loss", loss) #tensorboard log
         return {'val_loss':loss}
     
     def validation_epoch_end(self, outputs):
@@ -206,7 +237,11 @@ class ComTransformer(pl.LightningModule,Rx_loader):
         return self.val_loader
     
     def test_dataloader(self):
-        return self.test_loade
+        return self.test_loader
 
-tf = ComTransformer(16)
+if __name__ == '__main__':
+    
+    trainer = Trainer(fast_dev_run = True, callbacks=[TQDMProgressBar(refresh_rate=100)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+    tf      = ComTransformer(16) # 16QAM
+    trainer.fit(tf)
 
