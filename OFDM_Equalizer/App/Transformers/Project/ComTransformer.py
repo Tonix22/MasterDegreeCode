@@ -9,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from pytorch_lightning.callbacks import TQDMProgressBar
 import math
 import warnings
+import numpy as np
 warnings.filterwarnings("ignore", category=UserWarning)
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../../../"
 sys.path.insert(0, main_path+"controllers")
@@ -21,6 +22,9 @@ BATCHSIZE  = 10
 NUM_EPOCHS = 10
 REAL_EPOCS = 30*NUM_EPOCHS
 
+GOLDEN_BEST_SNR  = 45
+GOLDEN_WORST_SNR = 5
+GOLDEN_STEP      = 2
 
 class PositionalEncoding(nn.Module):
     def __init__(self, dim_model, dropout_p, max_len):
@@ -100,6 +104,8 @@ class Transformer(pl.LightningModule,Rx_loader):
             dropout = dropout_p,
         )
         self.out = nn.Linear(dim_model, num_tokens)
+        self.SNR_db = 35
+        self.errors = 0
 
     #TODO testme
     def y_awgn(self,H,x,SNR):
@@ -202,7 +208,6 @@ class Transformer(pl.LightningModule,Rx_loader):
         chann, x = batch
         #chann preparation
         chann    = chann.permute(0,3,1,2)
-        chann.requires_grad = True
         # Get mask to mask out the next words
         sequence_length = x.size(1)
         tgt_mask = self.get_tgt_mask(sequence_length)
@@ -220,6 +225,33 @@ class Transformer(pl.LightningModule,Rx_loader):
         self.log("avg_val_loss", avg_loss) #tensorboard logs
         return {'val_loss':avg_loss}
     
+    def test_step(self, batch, batch_idx):
+        chann, x = batch
+        chann    = chann.permute(0,3,1,2)
+        SNR = self.SNR_db
+        # Get source mask
+        sequence_length = x.size(1)
+        tgt_mask = self.get_tgt_mask(sequence_length)
+        
+        pred = self(x, x,chann,SNR,tgt_mask=tgt_mask)
+        pred = pred.permute(1, 2, 0)
+        rx_bits = torch.zeros(x.shape) 
+        for batch_idx in range(0,10): 
+            for symbol in range(0,48):
+                val       = pred[batch_idx][:,symbol]
+                item      = val.topk(1)[1].view(-1)[-1].item() # num with highest probability
+                rx_bits[batch_idx][symbol] = item
+                # Concatenate previous input with predicted best word
+        
+        tx_bits = np.uint8(x.cpu().detach().numpy())
+        rx_bits = np.uint8(rx_bits.cpu().detach().numpy())
+        self.errors  += np.unpackbits((tx_bits^rx_bits)).sum()
+        BER     = self.errors/((self.data.bitsframe*self.data.sym_no)*48*10)
+        self.log('SNR', SNR, on_step=True, prog_bar=True, logger=True)
+        self.log('BER', BER, on_step=True, prog_bar=True, logger=True)
+        
+        return self.errors
+    
     def train_dataloader(self):
         return self.train_loader
         
@@ -231,7 +263,13 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
     
-    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=REAL_EPOCS)
+    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=REAL_EPOCS)
+                      #resume_from_checkpoint='lightning_logs/version_9/checkpoints/epoch=81-step=98400.ckpt')
     tf      = Transformer(num_tokens=16, dim_model=2, num_heads=2, num_encoder_layers=5, num_decoder_layers=5, dropout_p=0.1) # 16QAM
-    trainer.fit(tf)
-
+    #trainer.fit(tf)
+    """
+    for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,GOLDEN_STEP*-1):
+        tf.error  = 0
+        tf.SNR_db = n
+        trainer.test(tf)
+    """
