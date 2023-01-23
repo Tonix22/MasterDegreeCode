@@ -19,8 +19,7 @@ from Recieved import RX,Rx_loader
 #Hyperparameters
 BATCHSIZE  = 10
 #from 35 SNR to 5 takes 30 EPOCHS, so calculate epochs caount in this
-NUM_EPOCHS = 10
-REAL_EPOCS = 30*NUM_EPOCHS
+NUM_EPOCHS = 40
 
 GOLDEN_BEST_SNR  = 45
 GOLDEN_WORST_SNR = 5
@@ -237,10 +236,12 @@ class Transformer(pl.LightningModule,Rx_loader):
         sequence_length = x.size(1)
         tgt_mask = self.get_tgt_mask(sequence_length)
         
-        pred = self(x, x,chann,SNR,tgt_mask=tgt_mask)
+        pred = self(x, x.clone(),chann,SNR,tgt_mask=tgt_mask)
         pred = pred.permute(1, 2, 0)
-        rx_bits = torch.zeros(x.shape) 
-        for batch_idx in range(0,10): 
+        loss  = self.loss_f(pred,x)
+        
+        rx_bits = torch.zeros(x.shape)
+        for batch_idx in range(0,BATCHSIZE): 
             for symbol in range(0,48):
                 val       = pred[batch_idx][:,symbol]
                 item      = val.topk(1)[1].view(-1)[-1].item() # num with highest probability
@@ -250,7 +251,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         tx_bits = np.uint8(x.cpu().detach().numpy())
         rx_bits = np.uint8(rx_bits.cpu().detach().numpy())
         self.errors  += np.unpackbits((tx_bits^rx_bits)).sum()
-        BER     = self.errors/((self.data.bitsframe*self.data.sym_no)*48*10)
+        BER     = self.errors/((self.data.bitsframe*self.data.sym_no)*BATCHSIZE)
         self.log('SNR', SNR, on_step=True, prog_bar=True, logger=True)
         self.log('BER', BER, on_step=True, prog_bar=True, logger=True)
         
@@ -267,13 +268,13 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
     
-    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=REAL_EPOCS)
-                      #resume_from_checkpoint='lightning_logs/version_9/checkpoints/epoch=81-step=98400.ckpt')
+    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
+                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_14/checkpoints/epoch=39-step=48000.ckpt')
     tf      = Transformer(num_tokens=16, dim_model=16, num_heads=16, num_encoder_layers=5, num_decoder_layers=5, dropout_p=0.1) # 16QAM
     trainer.fit(tf)
-    """
+
     for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,GOLDEN_STEP*-1):
         tf.error  = 0
         tf.SNR_db = n
         trainer.test(tf)
-    """
+    
