@@ -71,7 +71,7 @@ class Transformer(pl.LightningModule,Rx_loader):
     ):
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE)#Rx_loader constructor
-
+        #Select device
         self.constelation = num_tokens  #Values Range
         self.bitsframe    = int(math.log2(self.constelation))#Bits to Send 
         self.loss_f = torch.nn.CrossEntropyLoss()
@@ -118,8 +118,8 @@ class Transformer(pl.LightningModule,Rx_loader):
         # Noise power
         Pn = Ps / (10**(SNR/10))
         # Generate noise
-        noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape,requires_grad=True)
-        noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape,requires_grad=True)
+        noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape,requires_grad=True).to(self.device)
+        noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape,requires_grad=True).to(self.device)
         # multiply tensors
         return torch.stack([Yreal + noise_real,Yimag + noise_imag],dim=2)
     
@@ -164,7 +164,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         #  [0.,   0.,   0.,   0., -inf],
         #  [0.,   0.,   0.,   0.,   0.]]
         
-        return mask
+        return mask.to(self.device)
     
     def create_pad_mask(self, matrix: torch.tensor, pad_token: int) -> torch.tensor:
         # If matrix = [1,2,3,0,0,0] where pad_token=0, the result mask is
@@ -231,7 +231,7 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
     
-    trainer = Trainer(callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=REAL_EPOCS)
+    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=REAL_EPOCS)
     tf      = Transformer(num_tokens=16, dim_model=2, num_heads=2, num_encoder_layers=5, num_decoder_layers=5, dropout_p=0.1) # 16QAM
     trainer.fit(tf)
 
