@@ -87,7 +87,11 @@ class Transformer(pl.LightningModule,Rx_loader):
         )
         #contains num_tokens of dim_model size
         #Number of tokens QAM alphabet
-        self.embedding   = nn.Embedding(num_tokens, dim_model)
+        self.embedding       = nn.Embedding(num_tokens, dim_model)
+        self.norm_src_embed  = nn.LayerNorm(dim_model)
+        self.norm_src_noise  = nn.LayerNorm(dim_model)
+        self.norm_tgt_embed  = nn.LayerNorm(dim_model)
+        
         self.transformer = nn.Transformer(
             d_model = dim_model,
             nhead   = num_heads,
@@ -125,9 +129,13 @@ class Transformer(pl.LightningModule,Rx_loader):
 
         # Embedding + positional encoding - Out size = (batch_size, sequence length, dim_model)
         src = self.embedding(src) * math.sqrt(self.dim_model)
+        src = self.norm_src_embed(src)
         src = self.y_awgn(H,src,SNR)
+        src = self.norm_src_noise(src)
         
         tgt = self.embedding(tgt) * math.sqrt(self.dim_model)
+        tgt = self.norm_tgt_embed(tgt)
+        #positional enconder
         src = self.positional_encoder(src)
         tgt = self.positional_encoder(tgt)
         
@@ -224,6 +232,6 @@ class Transformer(pl.LightningModule,Rx_loader):
 if __name__ == '__main__':
     
     trainer = Trainer(callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=REAL_EPOCS)
-    tf      = Transformer(num_tokens=16, dim_model=2, num_heads=2, num_encoder_layers=6, num_decoder_layers=6, dropout_p=0.1) # 16QAM
+    tf      = Transformer(num_tokens=16, dim_model=2, num_heads=2, num_encoder_layers=5, num_decoder_layers=5, dropout_p=0.1) # 16QAM
     trainer.fit(tf)
 
