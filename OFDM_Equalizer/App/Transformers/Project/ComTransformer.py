@@ -91,7 +91,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         )
         #contains num_tokens of dim_model size
         #Number of tokens QAM alphabet
-        self.embedding       = nn.Embedding(num_tokens, dim_model)
+        self.embedding       = nn.Embedding(num_tokens, 2) # real imag
         self.norm_src_embed  = nn.LayerNorm(dim_model)
         self.norm_src_noise  = nn.LayerNorm(dim_model)
         self.norm_tgt_embed  = nn.LayerNorm(dim_model)
@@ -103,7 +103,9 @@ class Transformer(pl.LightningModule,Rx_loader):
             num_decoder_layers = num_decoder_layers,
             dropout = dropout_p,
         )
-        self.out = nn.Linear(dim_model, num_tokens)
+        self.src_level = nn.Linear(2,dim_model)
+        self.tgt_level = nn.Linear(2,dim_model)
+        self.out  = nn.Linear(dim_model, num_tokens)
         self.SNR_db = 35
         self.errors = 0
 
@@ -135,12 +137,14 @@ class Transformer(pl.LightningModule,Rx_loader):
 
         # Embedding + positional encoding - Out size = (batch_size, sequence length, dim_model)
         src = self.embedding(src) * math.sqrt(self.dim_model)
-        src = self.norm_src_embed(src)
+        #src = self.norm_src_embed(src)
         src = self.y_awgn(H,src,SNR)
-        src = self.norm_src_noise(src)
+        src = self.src_level(src)
+        #src = self.norm_src_noise(src)
         
         tgt = self.embedding(tgt) * math.sqrt(self.dim_model)
-        tgt = self.norm_tgt_embed(tgt)
+        tgt = self.tgt_level(tgt)
+        #tgt = self.norm_tgt_embed(tgt)
         #positional enconder
         src = self.positional_encoder(src)
         tgt = self.positional_encoder(tgt)
@@ -265,8 +269,8 @@ if __name__ == '__main__':
     
     trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=REAL_EPOCS)
                       #resume_from_checkpoint='lightning_logs/version_9/checkpoints/epoch=81-step=98400.ckpt')
-    tf      = Transformer(num_tokens=16, dim_model=2, num_heads=2, num_encoder_layers=5, num_decoder_layers=5, dropout_p=0.1) # 16QAM
-    #trainer.fit(tf)
+    tf      = Transformer(num_tokens=16, dim_model=16, num_heads=16, num_encoder_layers=5, num_decoder_layers=5, dropout_p=0.1) # 16QAM
+    trainer.fit(tf)
     """
     for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,GOLDEN_STEP*-1):
         tf.error  = 0
