@@ -273,7 +273,7 @@ if __name__ == '__main__':
     tf      = Transformer(num_tokens=16, dim_model=16, num_heads=16, num_encoder_layers=5, num_decoder_layers=5, dropout_p=0.1) # 16QAM
     trainer.fit(tf)
 
-    for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR,GOLDEN_STEP*-1):
+    for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP*-1):
         tf.error  = 0
         tf.SNR_db = n
         trainer.test(tf)
