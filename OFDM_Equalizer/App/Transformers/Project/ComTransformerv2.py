@@ -63,7 +63,9 @@ class Transformer(pl.LightningModule,Rx_loader):
         self.loss_f       = torch.nn.CrossEntropyLoss()
         
         #Embedding section
-        self.src_word_embedding     = nn.Embedding(src_vocab_size, embedding_size)
+        self.src_word_embedding     = nn.Embedding(src_vocab_size, 2)
+        self.fc_expand_IQ           = nn.Linear(2, embedding_size)
+        
         self.src_position_embedding = nn.Embedding(max_len,        embedding_size)
         self.trg_word_embedding     = nn.Embedding(trg_vocab_size, embedding_size)
         self.trg_position_embedding = nn.Embedding(max_len,        embedding_size)
@@ -108,9 +110,11 @@ class Transformer(pl.LightningModule,Rx_loader):
             .expand(trg_seq_length, N)
             .to(self.device)
         )
+        IQ_encond = self.src_word_embedding(src)
+        IQ_expand = self.fc_expand_IQ(IQ_encond)
 
         embed_src = self.dropout(
-            (self.src_word_embedding(src) + self.src_position_embedding(src_positions))
+            (IQ_expand + self.src_position_embedding(src_positions))
         )
         embed_trg = self.dropout(
             (self.trg_word_embedding(trg) + self.trg_position_embedding(trg_positions))
@@ -286,7 +290,7 @@ class Transformer(pl.LightningModule,Rx_loader):
 if __name__ == '__main__':
     
     trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
-                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_2/checkpoints/epoch=9-step=12000.ckpt')
+                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_3/checkpoints/epoch=9-step=12000.ckpt')
     tf = Transformer(
     embedding_size,
     src_vocab_size,
