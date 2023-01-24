@@ -19,7 +19,7 @@ from Recieved import RX,Rx_loader
 #Hyperparameters
 BATCHSIZE  = 10
 #from 35 SNR to 5 takes 30 EPOCHS, so calculate epochs caount in this
-NUM_EPOCHS = 10
+NUM_EPOCHS = 200
 
 GOLDEN_BEST_SNR  = 45
 GOLDEN_WORST_SNR = 5
@@ -64,6 +64,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         
         #Embedding section
         self.src_word_embedding     = nn.Embedding(src_vocab_size, 2)
+        self.layer_norm_src         = nn.LayerNorm([48,2])
         self.fc_expand_IQ           = nn.Linear(2, embedding_size)
         
         self.src_position_embedding = nn.Embedding(max_len,        embedding_size)
@@ -93,7 +94,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         # (N, src_len)
         return src_mask.to(self.device)
 
-    def forward(self, src, trg):
+    def forward(self, src, trg,H,snr):
         src_seq_length, N = src.shape
         trg_seq_length, N = trg.shape
 
@@ -111,7 +112,11 @@ class Transformer(pl.LightningModule,Rx_loader):
             .to(self.device)
         )
         IQ_encond = self.src_word_embedding(src)
-        IQ_expand = self.fc_expand_IQ(IQ_encond)
+        IQ_encond = IQ_encond.permute(1,0,2)
+        #pass throught the noise
+        Y         = self.y_awgn(H,IQ_encond,snr)
+        Y         = self.layer_norm_src(Y).permute(1,0,2)
+        IQ_expand = self.fc_expand_IQ(Y)
 
         embed_src = self.dropout(
             (IQ_expand + self.src_position_embedding(src_positions))
@@ -134,7 +139,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         out = self.fc_out(out)
         return out
 
-    def y_awgn(self,H,x,SNR):
+    def y_awgn(self,H,x,snr):
         real = 0
         imag = 1
         Yreal = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, real]) - \
@@ -148,49 +153,19 @@ class Transformer(pl.LightningModule,Rx_loader):
         # Signal Power
         Ps = torch.mean(distance)
         # Noise power
-        Pn = Ps / (10**(SNR/10))
+        Pn = Ps / (10**(snr/10))
         # Generate noise
         noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape,requires_grad=True).to(self.device)
         noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape,requires_grad=True).to(self.device)
         # multiply tensors
         return torch.stack([Yreal + noise_real,Yimag + noise_imag],dim=2)
-    
-    """
-    def forward(self, src,tgt,H,SNR,tgt_mask=None, src_pad_mask=None, tgt_pad_mask=None):
-        # Src size must be (batch_size, src sequence length)
-        # Tgt size must be (batch_size, tgt sequence length)
-
-        # Embedding + positional encoding - Out size = (batch_size, sequence length, dim_model)
-        src = self.embedding(src) * math.sqrt(self.dim_model)
-        #src = self.norm_src_embed(src)
-        src = self.y_awgn(H,src,SNR)
-        src = self.src_level(src)
-        #src = self.norm_src_noise(src)
-        
-        tgt = self.embedding(tgt) * math.sqrt(self.dim_model)
-        tgt = self.tgt_level(tgt)
-        #tgt = self.norm_tgt_embed(tgt)
-        #positional enconder
-        src = self.positional_encoder(src)
-        tgt = self.positional_encoder(tgt)
-        
-        # We could use the parameter batch_first=True, but our KDL version doesn't support it yet, so we permute
-        # to obtain size (sequence length, batch_size, dim_model),
-        src = src.permute(1,0,2)
-        tgt = tgt.permute(1,0,2)
-
-        # Transformer blocks - Out size = (sequence length, batch_size, num_tokens)
-        transformer_out = self.transformer(src, tgt, tgt_mask=tgt_mask, src_key_padding_mask=src_pad_mask, tgt_key_padding_mask=tgt_pad_mask)
-        out = self.out(transformer_out)
-        
-        return out
-    """   
-      
+          
     def configure_optimizers(self): 
         return torch.optim.Adam(self.parameters(),lr=0.0005,weight_decay=1e-5,eps=.005)
     
     def training_step(self, batch, batch_idx):
-        SNR = (30-self.current_epoch*5)%31 +5
+        #(30-5*(n+1))%30+20
+        snr = (30-self.current_epoch*5)%31 +5
         chann, x = batch
         #chann preparation
         chann  = chann.permute(0,3,1,2) # Batch, channel, height, weight 
@@ -205,7 +180,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         # target[:-1, :] remove the last row of the target tensor 
         # and all columns of the tensor
         # Last row is a padding (1) or is a eos (3)
-        output = self(inp_data,target[:-1, :])
+        output = self(inp_data,target[:-1, :],chann,snr)
         output = output.reshape(-1, output.shape[2]) # then we merge first two dim
         
         #target[1:] will select all rows of the target tensor except for the first one
@@ -215,11 +190,11 @@ class Transformer(pl.LightningModule,Rx_loader):
         loss  = self.loss_f(output,target)
         
         self.log("train_loss", loss) #tensorboard logs
-        #self.log('SNR', SNR, on_step=False, on_epoch=True, prog_bar=True, logger=False)
+        self.log('SNR', snr, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
-        SNR = (30-self.current_epoch*5)%31 +5
+        snr = (30-self.current_epoch*5)%31 +5
         chann, x = batch
         #chann preparation
         chann  = chann.permute(0,3,1,2) # Batch, channel, height, weight 
@@ -234,7 +209,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         # target[:-1, :] remove the last row of the target tensor 
         # and all columns of the tensor
         # Last row is a padding (1) or is a eos (3)
-        output = self(inp_data,target[:-1, :])
+        output = self(inp_data,target[:-1, :],chann,snr)
         output = output.reshape(-1, output.shape[2]) # then we merge first two dim
         
         #target[1:] will select all rows of the target tensor except for the first one
@@ -261,9 +236,10 @@ class Transformer(pl.LightningModule,Rx_loader):
         for batch_i in range(0,BATCHSIZE):
             outputs = [2]#"<sos>"
             sentence_tensor = inp_data[:,batch_i].unsqueeze(1)
+            H = chann[batch_i].unsqueeze(0)
             for symbol in range(0,47):
                 trg_tensor = torch.LongTensor(outputs).unsqueeze(1).to(self.device)
-                output = self(sentence_tensor, trg_tensor)
+                output = self(sentence_tensor, trg_tensor,H,self.SNR_db)
                 best_guess = output.argmax(2)[-1, :].item()
                 outputs.append(best_guess)
                 # Concatenate previous input with predicted best word
@@ -273,10 +249,10 @@ class Transformer(pl.LightningModule,Rx_loader):
         rx_bits = np.uint8(rx_bits.cpu().detach().numpy())
         self.errors  += np.unpackbits((tx_bits^rx_bits)).sum()
         BER     = self.errors/((self.data.bitsframe*self.data.sym_no)*BATCHSIZE)
-        self.log('SNR', SNR, on_step=True, prog_bar=True, logger=True)
-        self.log('BER', BER, on_step=True, prog_bar=True, logger=True)
+        #self.log('SNR', SNR, on_step=True, prog_bar=True, logger=True)
+        #self.log('BER', BER, on_step=True, prog_bar=True, logger=True)
         
-        return self.errors
+        return BER
     
     def train_dataloader(self):
         return self.train_loader
@@ -289,8 +265,8 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
     
-    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
-                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_3/checkpoints/epoch=9-step=12000.ckpt')
+    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+                      #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_6/checkpoints/epoch=53-step=64800.ckpt')
     tf = Transformer(
     embedding_size,
     src_vocab_size,
