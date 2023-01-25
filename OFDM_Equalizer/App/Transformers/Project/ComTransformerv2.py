@@ -84,8 +84,9 @@ class Transformer(pl.LightningModule,Rx_loader):
         self.src_pad_idx = src_pad_idx
         
         #Communications stuff
-        self.SNR_db = 35
-        self.errors = 0
+        self.SNR_db   = 35
+        self.errors   = 0
+        self.bits_num = 0
         
 
     def make_src_mask(self, src):
@@ -158,7 +159,8 @@ class Transformer(pl.LightningModule,Rx_loader):
         noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape,requires_grad=True).to(self.device)
         noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape,requires_grad=True).to(self.device)
         # multiply tensors
-        return torch.stack([Yreal + noise_real,Yimag + noise_imag],dim=2)
+        #return torch.stack([Yreal + noise_real,Yimag + noise_imag],dim=2)
+        return torch.stack([Yreal ,Yimag],dim=2)
           
     def configure_optimizers(self): 
         return torch.optim.Adam(self.parameters(),lr=0.0005,weight_decay=1e-5,eps=.005)
@@ -245,10 +247,12 @@ class Transformer(pl.LightningModule,Rx_loader):
                 # Concatenate previous input with predicted best word
             rx_bits[batch_i] = torch.Tensor(outputs)
         
-        tx_bits = np.uint8(x.cpu().detach().numpy())
-        rx_bits = np.uint8(rx_bits.cpu().detach().numpy())
-        self.errors  += np.unpackbits((tx_bits^rx_bits)).sum()
-        BER     = self.errors/((self.data.bitsframe*self.data.sym_no)*BATCHSIZE)
+        tx_bits   = np.uint8(x.cpu().detach().numpy())
+        rx_bits   = np.uint8(rx_bits.cpu().detach().numpy())
+        xor       = np.unpackbits((tx_bits^rx_bits))
+        self.bits_num += len(xor)
+        self.errors  += xor.sum()
+        BER           = self.errors/self.bits_num
         #self.log('SNR', SNR, on_step=True, prog_bar=True, logger=True)
         #self.log('BER', BER, on_step=True, prog_bar=True, logger=True)
         
@@ -265,8 +269,8 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
     
-    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
-                      #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_6/checkpoints/epoch=53-step=64800.ckpt')
+    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
+                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_8/checkpoints/epoch=199-step=240000.ckpt')
     tf = Transformer(
     embedding_size,
     src_vocab_size,
