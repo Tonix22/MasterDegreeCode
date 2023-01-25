@@ -19,7 +19,7 @@ from Recieved import RX,Rx_loader
 #Hyperparameters
 BATCHSIZE  = 10
 #from 35 SNR to 5 takes 30 EPOCHS, so calculate epochs caount in this
-NUM_EPOCHS = 200
+NUM_EPOCHS = 1500
 
 GOLDEN_BEST_SNR  = 45
 GOLDEN_WORST_SNR = 5
@@ -28,10 +28,10 @@ GOLDEN_STEP      = 2
 # Model hyperparameters
 src_vocab_size = 16
 trg_vocab_size = 16
-embedding_size = 512
-num_heads = 8
-num_encoder_layers = 3
-num_decoder_layers = 3
+embedding_size = 96
+num_heads = 32
+num_encoder_layers = 6
+num_decoder_layers = 6
 dropout = 0.10
 max_len = 48
 forward_expansion = 4
@@ -64,7 +64,8 @@ class Transformer(pl.LightningModule,Rx_loader):
         
         #Embedding section
         self.src_word_embedding     = nn.Embedding(src_vocab_size, 2)
-        self.layer_norm_src         = nn.LayerNorm([48,2])
+        self.layer_norm_IQ          = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
+        self.layer_norm_src         = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
         self.fc_expand_IQ           = nn.Linear(2, embedding_size)
         
         self.src_position_embedding = nn.Embedding(max_len,        embedding_size)
@@ -87,6 +88,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         self.SNR_db   = 35
         self.errors   = 0
         self.bits_num = 0
+        self.snr_db_values = [(100,40), (180,30), (240,20), (280,10),(300,5)]
         
 
     def make_src_mask(self, src):
@@ -113,11 +115,15 @@ class Transformer(pl.LightningModule,Rx_loader):
             .to(self.device)
         )
         IQ_encond = self.src_word_embedding(src)
-        IQ_encond = IQ_encond.permute(1,0,2)
+        IQ_encond = self.layer_norm_IQ(IQ_encond.permute(1,0,2))
+        IQ_encond = torch.tanh(IQ_encond)
+        
         #pass throught the noise
         Y         = self.y_awgn(H,IQ_encond,snr)
         Y         = self.layer_norm_src(Y).permute(1,0,2)
+        Y         = torch.tanh(Y)
         IQ_expand = self.fc_expand_IQ(Y)
+        IQ_expand = torch.tanh(IQ_expand)
 
         embed_src = self.dropout(
             (IQ_expand + self.src_position_embedding(src_positions))
@@ -140,7 +146,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         out = self.fc_out(out)
         return out
 
-    def y_awgn(self,H,x,snr):
+    def y_awgn(self,H,x,snr_dB):
         real = 0
         imag = 1
         Yreal = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, real]) - \
@@ -149,25 +155,29 @@ class Transformer(pl.LightningModule,Rx_loader):
         Yimag = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, imag]) + \
                 torch.einsum('bjk,bk->bj', H[:, imag, :, :], x[:, :, real])
         
-        distance = torch.pow(Yreal,2) + torch.pow(Yimag,2)
-        
+        z = torch.complex(Yreal, Yimag)
         # Signal Power
-        Ps = torch.mean(distance)
+        Ps = torch.mean(torch.abs(z)**2)
         # Noise power
-        Pn = Ps / (10**(snr/10))
+        Pn = Ps / (10**(snr_dB/10))
         # Generate noise
         noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape,requires_grad=True).to(self.device)
         noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape,requires_grad=True).to(self.device)
         # multiply tensors
-        #return torch.stack([Yreal + noise_real,Yimag + noise_imag],dim=2)
-        return torch.stack([Yreal ,Yimag],dim=2)
+        return torch.stack([Yreal + noise_real,Yimag + noise_imag],dim=2)
+        #return torch.stack([Yreal ,Yimag],dim=2)
           
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=0.0005,weight_decay=1e-5,eps=.005)
+        return torch.optim.Adam(self.parameters(),weight_decay=1e-4)
+    
+    def SNR_select(self):
+        for lower, higher in self.snr_db_values:
+            if (self.current_epoch%300) <= lower:
+                self.SNR_db = higher
+                break
     
     def training_step(self, batch, batch_idx):
-        #(30-5*(n+1))%30+20
-        snr = (30-self.current_epoch*5)%31 +5
+        self.SNR_select()
         chann, x = batch
         #chann preparation
         chann  = chann.permute(0,3,1,2) # Batch, channel, height, weight 
@@ -182,7 +192,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         # target[:-1, :] remove the last row of the target tensor 
         # and all columns of the tensor
         # Last row is a padding (1) or is a eos (3)
-        output = self(inp_data,target[:-1, :],chann,snr)
+        output = self(inp_data,target[:-1, :],chann,self.SNR_db)
         output = output.reshape(-1, output.shape[2]) # then we merge first two dim
         
         #target[1:] will select all rows of the target tensor except for the first one
@@ -192,11 +202,11 @@ class Transformer(pl.LightningModule,Rx_loader):
         loss  = self.loss_f(output,target)
         
         self.log("train_loss", loss) #tensorboard logs
-        self.log('SNR', snr, on_step=False, on_epoch=True, prog_bar=True, logger=False)
+        self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
-        snr = (30-self.current_epoch*5)%31 +5
+        self.SNR_select()
         chann, x = batch
         #chann preparation
         chann  = chann.permute(0,3,1,2) # Batch, channel, height, weight 
@@ -211,7 +221,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         # target[:-1, :] remove the last row of the target tensor 
         # and all columns of the tensor
         # Last row is a padding (1) or is a eos (3)
-        output = self(inp_data,target[:-1, :],chann,snr)
+        output = self(inp_data,target[:-1, :],chann,self.SNR_db)
         output = output.reshape(-1, output.shape[2]) # then we merge first two dim
         
         #target[1:] will select all rows of the target tensor except for the first one
@@ -269,8 +279,8 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
     
-    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
-                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_8/checkpoints/epoch=199-step=240000.ckpt')
+    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+                      #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_8/checkpoints/epoch=199-step=240000.ckpt')
     tf = Transformer(
     embedding_size,
     src_vocab_size,
@@ -284,7 +294,7 @@ if __name__ == '__main__':
     max_len)
     
     trainer.fit(tf)
-    trainer.predict(tf)
+    #trainer.predict(tf)
     """
     for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP*-1):
         tf.error  = 0
