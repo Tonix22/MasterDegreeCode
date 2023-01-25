@@ -20,7 +20,7 @@ class QAM():
         #fixed random seed
         #np.random.seed(42)
         #Generate N bits
-        self.bits   = np.random.randint(0,self.constelation,num_symbols)
+        self.bits         = np.random.randint(4,self.constelation,num_symbols)
         #This array will collect true conteslation bits complex plane points
         self.GroundTruth = np.zeros(self.bits.size,dtype=complex)
         

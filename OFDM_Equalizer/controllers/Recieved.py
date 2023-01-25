@@ -59,7 +59,10 @@ class RX(Dataset):
         chann_imag   = torch.tensor(norm_H.imag).to(self.device).unsqueeze(-1)        
         #Final tensor (48,48,2) of two channels
         chann_tensor = torch.cat((chann_real, chann_imag), dim=2)
-        tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex64).to(self.device)
+        #tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex64).to(self.device)
+        tx_tensor    = torch.tensor(self.Qsym.bits[:,idx],dtype=torch.int64).squeeze()
+        tx_tensor[0]     = 2 # sos
+        tx_tensor[-1]    = 3 # eos
         return chann_tensor,tx_tensor
     
     
