@@ -28,10 +28,10 @@ GOLDEN_STEP      = 2
 # Model hyperparameters
 src_vocab_size = 16
 trg_vocab_size = 16
-embedding_size = 96
-num_heads = 32
-num_encoder_layers = 6
-num_decoder_layers = 6
+embedding_size = 512
+num_heads = 16
+num_encoder_layers = 4
+num_decoder_layers = 4
 dropout = 0.10
 max_len = 48
 forward_expansion = 4
@@ -64,7 +64,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         
         #Embedding section
         self.src_word_embedding     = nn.Embedding(src_vocab_size, 2)
-        self.layer_norm_IQ          = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
+        #self.layer_norm_IQ          = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
         self.layer_norm_src         = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
         self.fc_expand_IQ           = nn.Linear(2, embedding_size)
         
@@ -114,16 +114,12 @@ class Transformer(pl.LightningModule,Rx_loader):
             .expand(trg_seq_length, N)
             .to(self.device)
         )
-        IQ_encond = self.src_word_embedding(src)
-        IQ_encond = self.layer_norm_IQ(IQ_encond.permute(1,0,2))
-        IQ_encond = torch.tanh(IQ_encond)
+        IQ_encond = self.src_word_embedding(src).permute(1,0,2)
         
         #pass throught the noise
         Y         = self.y_awgn(H,IQ_encond,snr)
         Y         = self.layer_norm_src(Y).permute(1,0,2)
-        Y         = torch.tanh(Y)
         IQ_expand = self.fc_expand_IQ(Y)
-        IQ_expand = torch.tanh(IQ_expand)
 
         embed_src = self.dropout(
             (IQ_expand + self.src_position_embedding(src_positions))
@@ -163,12 +159,27 @@ class Transformer(pl.LightningModule,Rx_loader):
         # Generate noise
         noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape,requires_grad=True).to(self.device)
         noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape,requires_grad=True).to(self.device)
-        # multiply tensors
-        return torch.stack([Yreal + noise_real,Yimag + noise_imag],dim=2)
-        #return torch.stack([Yreal ,Yimag],dim=2)
+        # add noise to tensors
+        Yreal = Yreal + noise_real
+        Yimag = Yimag + noise_imag
+        #normalize Y_real from -1 to 1
+        min_val   = torch.min(Yreal)
+        max_val   = torch.max(Yreal)
+        range_val = max_val - min_val
+        Yreal     = (Yreal - min_val) / range_val
+        Yreal     =  Yreal * 2 - 1
+        
+        #normalize Y_imag from -1 to 1
+        min_val   = torch.min(Yimag)
+        max_val   = torch.max(Yimag)
+        range_val = max_val - min_val
+        Yimag     = (Yimag - min_val) / range_val
+        Yimag     =  Yimag * 2 - 1
+        
+        return torch.stack([Yreal,Yimag],dim=2)
           
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),weight_decay=1e-4)
+        return torch.optim.Adam(self.parameters(),lr=0.0005,weight_decay=1e-5,eps=.005)
     
     def SNR_select(self):
         for lower, higher in self.snr_db_values:
@@ -278,8 +289,8 @@ class Transformer(pl.LightningModule,Rx_loader):
         return self.test_loader
 
 if __name__ == '__main__':
-    
-    trainer = Trainer(accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+
+    trainer = Trainer(gradient_clip_val=1.0,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
                       #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_8/checkpoints/epoch=199-step=240000.ckpt')
     tf = Transformer(
     embedding_size,
