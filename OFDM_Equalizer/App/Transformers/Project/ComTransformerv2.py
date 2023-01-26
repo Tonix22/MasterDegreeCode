@@ -19,7 +19,7 @@ from Recieved import RX,Rx_loader
 #Hyperparameters
 BATCHSIZE  = 10
 #from 35 SNR to 5 takes 30 EPOCHS, so calculate epochs caount in this
-NUM_EPOCHS = 1500
+NUM_EPOCHS = 761
 
 GOLDEN_BEST_SNR  = 45
 GOLDEN_WORST_SNR = 5
@@ -89,6 +89,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         self.errors   = 0
         self.bits_num = 0
         self.snr_db_values = [(100,40), (180,30), (240,20), (280,10),(300,5)]
+        self.test_ber = 0
         
 
     def make_src_mask(self, src):
@@ -276,7 +277,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         BER           = self.errors/self.bits_num
         #self.log('SNR', SNR, on_step=True, prog_bar=True, logger=True)
         #self.log('BER', BER, on_step=True, prog_bar=True, logger=True)
-        
+        self.test_ber = BER #own parameter
         return BER
     
     def train_dataloader(self):
@@ -290,8 +291,8 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
 
-    trainer = Trainer(gradient_clip_val=1.0,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
-                      #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_8/checkpoints/epoch=199-step=240000.ckpt')
+    trainer = Trainer(gradient_clip_val=1.0,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
+                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_21/checkpoints/epoch=760-step=913200.ckpt')
     tf = Transformer(
     embedding_size,
     src_vocab_size,
@@ -305,10 +306,12 @@ if __name__ == '__main__':
     max_len)
     
     trainer.fit(tf)
-    #trainer.predict(tf)
-    """
+    
     for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP*-1):
-        tf.error  = 0
-        tf.SNR_db = n
+        tf.errors   = 0
+        tf.bits_num = 0
+        tf.SNR_db   = n
         trainer.predict(tf)
-    """
+        print("_______:SNR:{}________".format(n))
+        print("________BER:{}________".format(tf.test_ber))
+    
