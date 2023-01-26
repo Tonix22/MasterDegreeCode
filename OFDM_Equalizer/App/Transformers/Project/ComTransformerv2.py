@@ -2,6 +2,7 @@ import torch
 import os
 import sys
 import torch.nn as nn
+from torch import Tensor
 import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning import Trainer
@@ -28,14 +29,35 @@ GOLDEN_STEP      = 2
 # Model hyperparameters
 src_vocab_size = 16
 trg_vocab_size = 16
-embedding_size = 512
-num_heads = 16
-num_encoder_layers = 4
-num_decoder_layers = 4
+embedding_size = 1024
+num_heads = 256
+num_encoder_layers = 8
+num_decoder_layers = 8
 dropout = 0.10
 max_len = 48
 forward_expansion = 4
 src_pad_idx       = 1
+
+class PositionalEncoding(nn.Module):
+    
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Args:
+            x: Tensor, shape [seq_len, batch_size, embedding_dim]
+        """
+        x = x + self.pe[:x.size(0)]
+        return self.dropout(x)
 
 
 
@@ -64,13 +86,13 @@ class Transformer(pl.LightningModule,Rx_loader):
         
         #Embedding section
         self.src_word_embedding     = nn.Embedding(src_vocab_size, 2)
-        #self.layer_norm_IQ          = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
+        self.layer_norm_IQ          = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
         self.layer_norm_src         = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
         self.fc_expand_IQ           = nn.Linear(2, embedding_size)
+        self.src_position_embedding = PositionalEncoding(embedding_size, dropout)
         
-        self.src_position_embedding = nn.Embedding(max_len,        embedding_size)
         self.trg_word_embedding     = nn.Embedding(trg_vocab_size, embedding_size)
-        self.trg_position_embedding = nn.Embedding(max_len,        embedding_size)
+        self.trg_position_embedding = PositionalEncoding(embedding_size, dropout)
 
         self.transformer = nn.Transformer(
             embedding_size,
@@ -82,6 +104,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         )
         self.fc_out      = nn.Linear(embedding_size, trg_vocab_size)
         self.dropout     = nn.Dropout(dropout)
+        self.tanh_IQ     = nn.Tanh()
         self.src_pad_idx = src_pad_idx
         
         #Communications stuff
@@ -99,35 +122,18 @@ class Transformer(pl.LightningModule,Rx_loader):
         return src_mask.to(self.device)
 
     def forward(self, src, trg,H,snr):
-        src_seq_length, N = src.shape
         trg_seq_length, N = trg.shape
-
-        src_positions = (
-            torch.arange(0, src_seq_length)
-            .unsqueeze(1)
-            .expand(src_seq_length, N)
-            .to(self.device)
-        )
-
-        trg_positions = (
-            torch.arange(0, trg_seq_length)
-            .unsqueeze(1)
-            .expand(trg_seq_length, N)
-            .to(self.device)
-        )
+    
         IQ_encond = self.src_word_embedding(src).permute(1,0,2)
-        
+        IQ_encond = self.layer_norm_IQ(IQ_encond)
+        IQ_encond = self.tanh_IQ(IQ_encond)
         #pass throught the noise
         Y         = self.y_awgn(H,IQ_encond,snr)
         Y         = self.layer_norm_src(Y).permute(1,0,2)
         IQ_expand = self.fc_expand_IQ(Y)
 
-        embed_src = self.dropout(
-            (IQ_expand + self.src_position_embedding(src_positions))
-        )
-        embed_trg = self.dropout(
-            (self.trg_word_embedding(trg) + self.trg_position_embedding(trg_positions))
-        )
+        embed_src = self.dropout((self.src_position_embedding(IQ_expand)))
+        embed_trg = self.dropout(self.trg_position_embedding((self.trg_word_embedding(trg))))
 
         src_padding_mask = self.make_src_mask(src)
         trg_mask = self.transformer.generate_square_subsequent_mask(trg_seq_length).to(
@@ -291,8 +297,8 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
 
-    trainer = Trainer(gradient_clip_val=1.0,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
-                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_21/checkpoints/epoch=760-step=913200.ckpt')
+    trainer = Trainer(gradient_clip_val=1.0,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+                      #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_21/checkpoints/epoch=760-step=913200.ckpt')
     tf = Transformer(
     embedding_size,
     src_vocab_size,
@@ -306,7 +312,7 @@ if __name__ == '__main__':
     max_len)
     
     trainer.fit(tf)
-    
+    """
     for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP*-1):
         tf.errors   = 0
         tf.bits_num = 0
@@ -314,4 +320,4 @@ if __name__ == '__main__':
         trainer.predict(tf)
         print("_______:SNR:{}________".format(n))
         print("________BER:{}________".format(tf.test_ber))
-    
+    """
