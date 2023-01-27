@@ -8,7 +8,7 @@ conda install --yes --file requirements.txt
 conda install -c conda-forge pytorch-gpu
 
 # Dependendencies
-pip3 install -r requirements.txt
+conda env create -f environment.yml
 
 ## Notes
 
