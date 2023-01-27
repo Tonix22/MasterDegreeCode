@@ -11,3 +11,17 @@ manim_animations/Chapter2/media/texts/96a9fe330bd31ce3.svg
 OFDM_Equalizer/reports/*.csv
 OFDM_Equalizer/Data/v2v80211p_LOS.mat
 OFDM_Equalizer/Data/v2v80211p_NLOS.mat
+OFDM_Equalizer/App/Autoencoder/lightning_logs/*
+*/lightning_logs/*
+OFDM_Equalizer/.data/*
+*.yaml
+*.ckpt
+*.tar
+*.pth
+*.csv
+*events.*
+*.tar.gz
+*test2016*
+OFDM_Equalizer/App/Transformers/NaturalLanguage/.data/multi30k/*
+*.svgz
+
