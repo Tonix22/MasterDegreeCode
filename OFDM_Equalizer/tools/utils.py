@@ -11,7 +11,7 @@ from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP, PLOTS_PATH
 import matplotlib.pyplot as plot
 from datetime import datetime
 
-MONTH = "December"
+MONTH = "January"
     
 def get_time_string():
     current_time = datetime.now()

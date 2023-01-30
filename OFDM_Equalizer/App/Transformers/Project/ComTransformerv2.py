@@ -19,7 +19,7 @@ from Recieved import RX,Rx_loader
 #Hyperparameters
 BATCHSIZE  = 10
 #from 35 SNR to 5 takes 30 EPOCHS, so calculate epochs caount in this
-NUM_EPOCHS = 1500
+NUM_EPOCHS = 600
 
 GOLDEN_BEST_SNR  = 45
 GOLDEN_WORST_SNR = 5
@@ -28,8 +28,8 @@ GOLDEN_STEP      = 2
 # Model hyperparameters
 src_vocab_size = 16
 trg_vocab_size = 16
-embedding_size = 512
-num_heads = 256
+embedding_size = 620 # 48*12
+num_heads = 310 # 48*7
 num_encoder_layers = 4
 num_decoder_layers = 4
 dropout = 0.10
@@ -88,7 +88,8 @@ class Transformer(pl.LightningModule,Rx_loader):
         self.SNR_db   = 35
         self.errors   = 0
         self.bits_num = 0
-        self.snr_db_values = [(100,40), (180,30), (240,20), (280,10),(300,5)]
+        self.snr_db_values = [(80,40), (160,30), (240,20), (320,10),(350,5)]
+        self.BER = 0
         
 
     def make_src_mask(self, src):
@@ -183,7 +184,7 @@ class Transformer(pl.LightningModule,Rx_loader):
     
     def SNR_select(self):
         for lower, higher in self.snr_db_values:
-            if (self.current_epoch%300) <= lower:
+            if (self.current_epoch%350) <= lower:
                 self.SNR_db = higher
                 break
     
@@ -271,12 +272,12 @@ class Transformer(pl.LightningModule,Rx_loader):
         tx_bits   = np.uint8(x.cpu().detach().numpy())
         rx_bits   = np.uint8(rx_bits.cpu().detach().numpy())
         xor       = np.unpackbits((tx_bits^rx_bits))
-        self.bits_num += len(xor)
+        self.bits_num += (48*16*10) # 48 sequ,16QAM,10Batch
         self.errors  += xor.sum()
         BER           = self.errors/self.bits_num
+        self.BER = BER
         #self.log('SNR', SNR, on_step=True, prog_bar=True, logger=True)
         #self.log('BER', BER, on_step=True, prog_bar=True, logger=True)
-        
         return BER
     
     def train_dataloader(self):
@@ -290,8 +291,8 @@ class Transformer(pl.LightningModule,Rx_loader):
 
 if __name__ == '__main__':
 
-    trainer = Trainer(gradient_clip_val=1.0,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
-                      #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_8/checkpoints/epoch=199-step=240000.ckpt')
+    trainer = Trainer(gradient_clip_val=1.0,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
+                      resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/Project/lightning_logs/version_51/checkpoints/epoch=490-step=589200.ckpt')
     tf = Transformer(
     embedding_size,
     src_vocab_size,
@@ -306,9 +307,12 @@ if __name__ == '__main__':
     
     trainer.fit(tf)
     #trainer.predict(tf)
-    """
+    
     for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP*-1):
         tf.error  = 0
+        tf.BER    = 0
         tf.SNR_db = n
         trainer.predict(tf)
-    """
+        print("SNR:{} BER:{}".format(tf.SNR_db,tf.BER), file=open('BER_SNR_620_310.txt', 'a'))
+        
+    

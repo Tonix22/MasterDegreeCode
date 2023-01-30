@@ -72,11 +72,11 @@ class Rx_loader(object):
         # Define the split ratios (training, validation, testing)
         train_ratio = 0.6
         val_ratio   = 0.2
-        test_ratio  = 0.2
+        test_ratio  = 0.05
         # Calculate the number of samples in each set
         train_size = int(train_ratio * len(self.data))
         val_size   = int(val_ratio * len(self.data))
-        test_size  = len(self.data) - train_size - val_size
+        test_size  = int(test_ratio*len(self.data))
         # Split the dataset
         train_set, val_set, test_set = random_split(self.data, [train_size, val_size, test_size])
         self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
