@@ -12,7 +12,7 @@ from Recieved import RX
 from utils import vector_to_pandas ,get_time_string
 from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
 
-data = RX(4,"Data")
+data = RX(4,"Unit_Pow")
 BER    = []
 
 def LMSE(H,Y,SNR):
@@ -41,6 +41,7 @@ if __name__ == '__main__':
     for SNR in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,-1*GOLDEN_STEP):
         loop   = tqdm(range(0,data.total),desc="Progress")
         errors = 0
+        bits   = 0
         data.AWGN(SNR)
         for i in loop:
             #Get realization
@@ -51,14 +52,15 @@ if __name__ == '__main__':
             X_hat  = EqType[Select](H,Y,SNR)
             
             rxbits = data.Qsym.Demod(X_hat)
-            errors+=np.unpackbits((txbits^rxbits).view('uint8')).sum()
-            
+            xor    = np.unpackbits((txbits^rxbits).view('uint8'))
+            errors+= xor.sum()
+            bits  += 16*48 # 16 QAM times 48 symbols
             #Status bar and monitor  
             if(i % 500 == 0):
                 loop.set_description(f"SNR [{SNR}] T=[{Select}]")
-                loop.set_postfix(ber=errors/((data.bitsframe*data.sym_no)*data.total))
+                loop.set_postfix(ber=errors/(bits))
                 
-        BER.append(errors/((data.bitsframe*data.sym_no)*data.total))
+        BER.append(errors/(bits))
         
     vector_to_pandas("Golden_{}_BER_SNR{}.csv".format(Select,get_time_string()),BER)
 

@@ -8,14 +8,14 @@ import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader, random_split
 
 class RX(Dataset):
-    def __init__(self,constelation,bitstype):
+    def __init__(self,constelation,bitstype,load):
         #Channel Data set is of size 48
         self.bitsframe = int(log2(constelation))
         self.sym_no = 48
         self.total  = 20000
         self.LOS    = Channel()
         self.NLOS   = Channel(LOS=False)
-        self.Qsym   = QAM(self.sym_no * self.total,constelation=constelation,cont_type= bitstype) # all symbols per realization
+        self.Qsym   = QAM(self.sym_no * self.total,constelation=constelation,cont_type= bitstype,load_type=load) # all symbols per realization
         #Each column is a realization 
         self.Qsym.GroundTruth = np.reshape(self.Qsym.GroundTruth,(self.sym_no,self.total,1))
         self.Qsym.r    = np.reshape(self.Qsym.r,(self.sym_no,self.total,1))
@@ -28,6 +28,8 @@ class RX(Dataset):
         self.Generate()
         self.device  = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         self.power_factor = np.sum(np.abs(self.H)**2)/np.size(self.H) # Power of complex matrix H
+        #load type
+        self.load = load # "Complete", "Alphabet"
     
     def Generate(self):
         #Swtiching verison
@@ -51,27 +53,36 @@ class RX(Dataset):
     
     #Call AWGN befor call asigment to make sure you have the noise in data
     def __getitem__(self, idx):
+        #Channel part
+        
         #Normalize tensor
-        norm_H       = self.H[:,:,idx]/self.power_factor
-        #norm_H        = self.H[:,:,idx]
+        H_idx       = self.H[:,:,idx]
         #extract both parts
-        chann_real   = torch.tensor(norm_H.real).to(self.device).unsqueeze(-1)
-        chann_imag   = torch.tensor(norm_H.imag).to(self.device).unsqueeze(-1)        
+        chann_real   = torch.tensor(H_idx.real).to(self.device).unsqueeze(-1)
+        chann_imag   = torch.tensor(H_idx.imag).to(self.device).unsqueeze(-1)        
         #Final tensor (48,48,2) of two channels
         chann_tensor = torch.cat((chann_real, chann_imag), dim=2)
-        #tx_tensor    = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex64).to(self.device)
-        tx_tensor    = torch.tensor(self.Qsym.bits[:,idx],dtype=torch.int64).squeeze()
-        tx_tensor[0]     = 2 # sos
-        tx_tensor[-1]    = 3 # eos
+      
+        #Tx part
+        tx_tensor = None
+        
+        if(self.load == "Alphabet"): #natural language procesing
+            tx_tensor      = torch.tensor(self.Qsym.bits[:,idx],dtype=torch.int64).squeeze()
+            tx_tensor[0]   = 2 # sos
+            tx_tensor[-1]  = 3 # eos
+        
+        if(self.load == "Complete"): #Imaginary and real parts
+            tx_tensor = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex128).to(self.device)
+            
         return chann_tensor,tx_tensor
     
     
 class Rx_loader(object):
-    def __init__(self,batch_size):
-        self.data    = RX(16,"Unit_Pow")
+    def __init__(self,batch_size,QAM,load):
+        self.data    = RX(QAM,"Unit_Pow",load)
         # Define the split ratios (training, validation, testing)
         train_ratio = 0.6
-        val_ratio   = 0.3
+        val_ratio   = 0.2
         # Calculate the number of samples in each set
         train_size = int(train_ratio * len(self.data))
         val_size   = int(val_ratio * len(self.data))
@@ -81,4 +92,6 @@ class Rx_loader(object):
         self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
         self.val_loader   = DataLoader(val_set,   batch_size=batch_size, shuffle=False)
         self.test_loader  = DataLoader(test_set,  batch_size=batch_size, shuffle=False)
+        self.test_set = test_set
+        
         

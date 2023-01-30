@@ -5,7 +5,7 @@ from math import sqrt
 
 class QAM():
     #const_type : Data, Unit_Pow, Norm
-    def __init__(self,num_symbols,constelation=4,cont_type= "Data", noise = False, noise_power = 0.05):
+    def __init__(self,num_symbols,constelation=4,cont_type= "Data", noise = False, noise_power = 0.05,load_type = "complete"):
         
         #check valid input values
         if(constelation!=4 and constelation!=16 and constelation!=32 and constelation!=64):
@@ -20,7 +20,12 @@ class QAM():
         #fixed random seed
         #np.random.seed(42)
         #Generate N bits
-        self.bits         = np.random.randint(4,self.constelation,num_symbols)
+        #
+        if(load_type == "Complete"):
+            self.bits  = np.random.randint(0,self.constelation,num_symbols)
+        if(load_type == "Alphabet"): #natural language procesing
+            self.bits  = np.random.randint(4,self.constelation,num_symbols) 
+        
         #This array will collect true conteslation bits complex plane points
         self.GroundTruth = np.zeros(self.bits.size,dtype=complex)
         

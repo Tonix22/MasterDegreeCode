@@ -109,7 +109,10 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
 if __name__ == '__main__':
     trainer = Trainer(callbacks=[TQDMProgressBar(refresh_rate=100)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
     model   = AutoencoderNN(96)
-    trainer.fit(model,ckpt_path='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/version_1/checkpoints/epoch=771-step=926400.ckpt')
+    checkpoint_file = torch.load('/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/Autoencoderckpt/checkpoints/epoch=999-step=1200000.ckpt')
+    print(checkpoint_file.keys())
+    model.load_state_dict(checkpoint_file['state_dict'])
+    #trainer.fit(model,ckpt_path='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/version_1/checkpoints/epoch=771-step=926400.ckpt')
     #trainer.fit(model)
     
     
