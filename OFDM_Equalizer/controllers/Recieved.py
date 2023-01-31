@@ -58,8 +58,8 @@ class RX(Dataset):
         #Normalize tensor
         H_idx       = self.H[:,:,idx]
         #extract both parts
-        chann_real   = torch.tensor(H_idx.real).to(self.device).unsqueeze(-1)
-        chann_imag   = torch.tensor(H_idx.imag).to(self.device).unsqueeze(-1)        
+        chann_real   = torch.tensor(H_idx.real).to(torch.float64).to(self.device).unsqueeze(-1)
+        chann_imag   = torch.tensor(H_idx.imag).to(torch.float64).to(self.device).unsqueeze(-1)        
         #Final tensor (48,48,2) of two channels
         chann_tensor = torch.cat((chann_real, chann_imag), dim=2)
       

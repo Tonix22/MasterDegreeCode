@@ -29,6 +29,7 @@ class ConvNN(pl.LightningModule,Rx_loader):
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,16,"Complete")
         self.loss_f = self.Complex_MSE_polar
+        self.double()
         
         #input enconder
         self.enconder = nn.Sequential(
@@ -47,20 +48,19 @@ class ConvNN(pl.LightningModule,Rx_loader):
             nn.Linear(288, 96),
             nn.Tanh(),
             nn.Unflatten(dim=1, unflattened_size=(2, 48)) # 2 channels of lenght 48
-        )
+        ).double()
         
         #input is 1,48
-        self.H_x_mix = nn.Sequential
-        (
-            nn.LayerNorm(),
+        self.H_x_mix = nn.Sequential(
+            #nn.LayerNorm(),
             nn.Conv1d(4, 2, 3, stride=1, padding=1),
             nn.ReLU(),
             nn.Conv1d(2, 1, 3, stride=1, padding=1),
-            nn.ReLU(),
-        )
+            nn.ReLU()
+        ).double()
         
-        self.radius_linear = nn.Linear(48,48)
-        self.angle_linear  = nn.Linear(48,48)
+        self.radius_linear = nn.Linear(48,48).double()
+        self.angle_linear  = nn.Linear(48,48).double()
         
         #Communications stuff
         self.SNR_db   = 35
@@ -71,17 +71,15 @@ class ConvNN(pl.LightningModule,Rx_loader):
         
     def forward(self,H,y):
         H      = self.enconder(H) #Batch,Chann,Lenght
-        y_real = y.real 
-        y_imag = y.imag
-        concat = torch.cat((H,y_real,y_imag),dim=1)
-        cross  = self.H_x_mix(concat)
+        concat = torch.cat((H,y.real,y.imag),dim=1)
+        cross  = torch.squeeze(self.H_x_mix(concat))
         abs    = self.radius_linear(cross)
         angle  = self.angle_linear(cross)*2*torch.pi
         IQ     = torch.polar(abs,angle)
         return IQ
         
     def Complex_MSE_polar(self,output,target):
-        return torch.sum(torch.pow((torch.log(target.abs()/output.abs()),2))+torch.pow(target.angle()-output.angle(),2))
+        return .5*(torch.sum(torch.pow(torch.log(target.abs()/output.abs()),2)+torch.pow(target.angle()-output.angle(),2)))
     
     def configure_optimizers(self): 
         return torch.optim.Adam(self.parameters(),lr=0.0005,weight_decay=1e-5,eps=.005)
@@ -96,10 +94,11 @@ class ConvNN(pl.LightningModule,Rx_loader):
             # Noise power
             Pn = Ps / (10**(self.SNR_db/10))
             # Generate noise
-            noise = torch.sqrt(Pn/2)* (np.random.randn(self.sym_no,1) + 1j*np.random.randn(self.sym_no,1))
+            noise = torch.sqrt(Pn/2)* (torch.randn(self.data.sym_no).to(self.device) + 1j*torch.randn(self.data.sym_no).to(self.device))
             Y[i] = z+noise
             Y[i] = Y[i]/torch.max(torch.abs(Y[i])) #normalize magnitud
-        return Y
+            
+        return torch.unsqueeze(Y,1)
     
     def Normalize_H(self,H):
         for i in range(H.shape[0]):
@@ -107,7 +106,7 @@ class ConvNN(pl.LightningModule,Rx_loader):
                 H[i,j,:, :]= nn.functional.normalize(H[i,j,:, :])
     
     def training_step(self, batch, batch_idx):
-        self.SNR_db = (self.current_epoch%30+5)
+        self.SNR_db = ((34-self.current_epoch)%35)+5
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         #chann preparation
@@ -117,13 +116,13 @@ class ConvNN(pl.LightningModule,Rx_loader):
         self.Normalize_H(chann)
         #model eval
         x_hat = self(chann,Y) 
-        loss        = self.loss_f(x_hat,x)
-        
+        loss  = self.loss_f(x_hat,x)
+        self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
-        self.SNR_db = (self.current_epoch%30+5)
+        self.SNR_db = ((34-self.current_epoch)%35)+5
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         #chann preparation
