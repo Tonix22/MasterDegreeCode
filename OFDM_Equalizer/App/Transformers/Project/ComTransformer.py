@@ -28,8 +28,8 @@ GOLDEN_STEP      = 2
 # Model hyperparameters
 src_vocab_size = 16
 trg_vocab_size = 16
-embedding_size = 620 # 48*12
-num_heads = 310 # 48*7
+embedding_size = 512 # 48*12
+num_heads = 256 # 48*7
 num_encoder_layers = 4
 num_decoder_layers = 4
 dropout = 0.10
@@ -65,8 +65,9 @@ class Transformer(pl.LightningModule,Rx_loader):
         #Embedding section
         self.src_word_embedding     = nn.Embedding(src_vocab_size, 2)
         #self.layer_norm_IQ          = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
-        self.layer_norm_src         = nn.LayerNorm([48,2]) # reshape the tensor to (batch, dim, vocab_size)
+        self.layer_norm_src         = nn.LayerNorm([2,48]) # reshape the tensor to (batch, dim, vocab_size)
         self.fc_expand_IQ           = nn.Linear(2, embedding_size)
+        self.fc_contract_IQH        = nn.Linear(96, 48)
         
         self.src_position_embedding = nn.Embedding(max_len,        embedding_size)
         self.trg_word_embedding     = nn.Embedding(trg_vocab_size, embedding_size)
@@ -117,9 +118,14 @@ class Transformer(pl.LightningModule,Rx_loader):
         IQ_encond = self.src_word_embedding(src).permute(1,0,2)
         
         #pass throught the noise
-        Y         = self.y_awgn(H,IQ_encond,snr)
-        Y         = self.layer_norm_src(Y).permute(1,0,2)
-        IQ_expand = self.fc_expand_IQ(Y)
+        Y     = self.y_awgn(H,IQ_encond,snr).permute(0,2,1)
+        H     = self.extrac_diag(H)
+        eq_input = torch.concat((Y,H),dim=2)
+        eq_input = self.fc_contract_IQH(eq_input)
+        
+        eq_input = self.layer_norm_src(eq_input).permute(2,0,1)
+        
+        IQ_expand = self.fc_expand_IQ(eq_input)
 
         embed_src = self.dropout(
             (IQ_expand + self.src_position_embedding(src_positions))
@@ -142,39 +148,51 @@ class Transformer(pl.LightningModule,Rx_loader):
         out = self.fc_out(out)
         return out
 
+    def extrac_diag(self,H):
+        diagonal = torch.zeros((H.shape[0],H.shape[1],48)).to(self.device)
+        for i in range(H.shape[0]):
+            for j in range(H.shape[1]):
+                slice = H[i,j,:, :]
+                diagonal[i,j] = torch.diag(slice)
+                diagonal[i,j] =  diagonal[i,j]/diagonal[i,j].norm()
+        
+        return diagonal
+
     def y_awgn(self,H,x,snr_dB):
         real = 0
         imag = 1
-        Yreal = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, real]) - \
-                torch.einsum('bjk,bk->bj', H[:, imag, :, :], x[:, :, imag])
-                
-        Yimag = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, imag]) + \
-                torch.einsum('bjk,bk->bj', H[:, imag, :, :], x[:, :, real])
         
-        z = torch.complex(Yreal, Yimag)
-        # Signal Power
-        Ps = torch.mean(torch.abs(z)**2)
-        # Noise power
-        Pn = Ps / (10**(snr_dB/10))
-        # Generate noise
-        noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape,requires_grad=True).to(self.device)
-        noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape,requires_grad=True).to(self.device)
-        # add noise to tensors
-        Yreal = Yreal + noise_real
-        Yimag = Yimag + noise_imag
-        #normalize Y_real from -1 to 1
-        min_val   = torch.min(Yreal)
-        max_val   = torch.max(Yreal)
-        range_val = max_val - min_val
-        Yreal     = (Yreal - min_val) / range_val
-        Yreal     =  Yreal * 2 - 1
-        
-        #normalize Y_imag from -1 to 1
-        min_val   = torch.min(Yimag)
-        max_val   = torch.max(Yimag)
-        range_val = max_val - min_val
-        Yimag     = (Yimag - min_val) / range_val
-        Yimag     =  Yimag * 2 - 1
+        with torch.no_grad():
+            Yreal = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, real]) - \
+                    torch.einsum('bjk,bk->bj', H[:, imag, :, :], x[:, :, imag])
+                    
+            Yimag = torch.einsum('bjk,bk->bj', H[:, real, :, :], x[:, :, imag]) + \
+                    torch.einsum('bjk,bk->bj', H[:, imag, :, :], x[:, :, real])
+            
+            z = torch.complex(Yreal, Yimag)
+            # Signal Power
+            Ps = torch.mean(torch.abs(z)**2)
+            # Noise power
+            Pn = Ps / (10**(snr_dB/10))
+            # Generate noise
+            noise_real = torch.sqrt(Pn/2)* torch.randn(x[:,:,real].shape).to(self.device)
+            noise_imag = torch.sqrt(Pn/2)* torch.randn(x[:,:,imag].shape).to(self.device)
+            # add noise to tensors
+            Yreal = Yreal + noise_real
+            Yimag = Yimag + noise_imag
+            #normalize Y_real from -1 to 1
+            min_val   = torch.min(Yreal)
+            max_val   = torch.max(Yreal)
+            range_val = max_val - min_val
+            Yreal     = (Yreal - min_val) / range_val
+            Yreal     =  Yreal * 2 - 1
+            
+            #normalize Y_imag from -1 to 1
+            min_val   = torch.min(Yimag)
+            max_val   = torch.max(Yimag)
+            range_val = max_val - min_val
+            Yimag     = (Yimag - min_val) / range_val
+            Yimag     =  Yimag * 2 - 1
         
         return torch.stack([Yreal,Yimag],dim=2)
           
@@ -195,8 +213,7 @@ class Transformer(pl.LightningModule,Rx_loader):
         self.SNR_select()
         chann, x = batch
         #chann preparation
-        chann  = chann.permute(0,3,1,2) # Batch, channel, height, weight 
-        chann.requires_grad = True
+        chann  = chann.permute(0,3,1,2) # Batch, channel, height, weight
         #input data preparation
         inp_data = x.permute(1,0) # [length,batch]
 
@@ -311,12 +328,13 @@ if __name__ == '__main__':
     
     trainer.fit(tf)
     
+    """
     for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP*-1):
         tf.error  = 0
         tf.BER    = 0
         tf.SNR_db = n
         trainer.predict(tf)
         print("SNR:{} BER:{}".format(tf.SNR_db,tf.BER), file=open('BER_SNR.txt', 'a'))
-    
+    """
         
     
