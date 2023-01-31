@@ -16,7 +16,7 @@ sys.path.insert(0, main_path+"controllers")
 from Recieved import RX,Rx_loader
 
 #Hyperparameters
-BATCHSIZE  = 10
+BATCHSIZE  = 50
 #from 35 SNR to 5 takes 30 EPOCHS, so calculate epochs caount in this
 NUM_EPOCHS = 300
 
@@ -135,8 +135,8 @@ class ConvNN(pl.LightningModule,Rx_loader):
         x_hat = self(chann,Y) 
         loss  = self.loss_f(x_hat,x)
         
-        self.log("val_loss", loss) #tensorboard logs
-        return {'loss':loss}
+        self.log('val_loss', loss) #tensorboard logs
+        return {'val_loss':loss}
     
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
