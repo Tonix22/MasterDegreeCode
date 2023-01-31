@@ -34,18 +34,18 @@ class ConvNN(pl.LightningModule,Rx_loader):
         self.enconder = nn.Sequential(
             nn.Conv2d(2, 4, 3, stride=1, padding=1), #(4, 48, 48)
             nn.MaxPool2d(4,stride=1),#(4, 45, 45)
-            nn.Hardtanh(),
+            nn.Tanh(),
             nn.Conv2d(4, 8, 3, stride=2, padding=1),#(8, 23, 23)
-            nn.Hardtanh(),
+            nn.Tanh(),
             nn.MaxPool2d(4,stride=1),#(8, 20, 20)
             nn.Conv2d(8, 16, 3, stride=2, padding=1),#(16, 10, 10)
-            nn.Hardtanh(),
+            nn.Tanh(),
             nn.MaxPool2d(4,stride=1),
-            nn.Hardtanh(),
+            nn.Tanh(),
             nn.Conv2d(16, 32, 3, stride=2, padding=0), #(32, 3, 3)
             nn.Flatten(start_dim=1),
             nn.Linear(288, 96),
-            nn.Hardtanh(),
+            nn.Tanh(),
             nn.Unflatten(dim=1, unflattened_size=(2, 48)) # 2 channels of lenght 48
         )
         
@@ -101,6 +101,11 @@ class ConvNN(pl.LightningModule,Rx_loader):
             Y[i] = Y[i]/torch.max(torch.abs(Y[i])) #normalize magnitud
         return Y
     
+    def Normalize_H(self,H):
+        for i in range(H.shape[0]):
+            for j in range(H.shape[1]):
+                H[i,j,:, :]= nn.functional.normalize(H[i,j,:, :])
+    
     def training_step(self, batch, batch_idx):
         self.SNR_db = (self.current_epoch%30+5)
         # training_step defines the train loop. It is independent of forward
@@ -108,21 +113,27 @@ class ConvNN(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         Y     = self.Get_Y(chann,x)
-        #auto encoder
-        x_hat = self(chann,Y) #model eval
+        #normalize channel after Multiply by x
+        self.Normalize_H(chann)
+        #model eval
+        x_hat = self(chann,Y) 
         loss        = self.loss_f(x_hat,x)
         
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
+        self.SNR_db = (self.current_epoch%30+5)
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         #chann preparation
         chann = chann.permute(0,3,1,2)
         Y     = self.Get_Y(chann,x)
-        #auto encoder
-        x_hat = self(chann,Y) #model eval
+        
+        #normalize channel after Multiply by x
+        self.Normalize_H(chann)
+        #model eval
+        x_hat = self(chann,Y) 
         loss  = self.loss_f(x_hat,x)
         
         self.log("val_loss", loss) #tensorboard logs
