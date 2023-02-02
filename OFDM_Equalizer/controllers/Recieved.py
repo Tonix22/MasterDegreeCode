@@ -1,3 +1,5 @@
+import os
+import sys
 from Channel import Channel
 from QAM_mod import QAM
 import numpy as np
@@ -6,6 +8,12 @@ from math import sqrt
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader, random_split
+
+main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
+sys.path.insert(0, main_path+"tools")
+sys.path.insert(0, main_path+"conf")
+from utils import vector_to_pandas, get_time_string
+from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
 
 class RX(Dataset):
     def __init__(self,constelation,bitstype,load):
@@ -88,10 +96,89 @@ class Rx_loader(object):
         val_size   = int(val_ratio * len(self.data))
         test_size  = len(self.data) - train_size - val_size
         # Split the dataset
+        # set the seed for reproducibility
+        torch.manual_seed(0)
         train_set, val_set, test_set = random_split(self.data, [train_size, val_size, test_size])
         self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
         self.val_loader   = DataLoader(val_set,   batch_size=batch_size, shuffle=False)
         self.test_loader  = DataLoader(test_set,  batch_size=batch_size, shuffle=False)
-        self.test_set = test_set
+        self.test_set     = test_set
+        self.batch_size   = batch_size
+        #Telecom stuff
+        self.SNR_db   = 35 #init SNR by default
+        #used to calculate BER
+        self.BER      = 0
+        self.errors   = 0  #Errror per bit
+        self.bits_num = 0  # Total number of bits
+        self.BER_list = []
+    
+    #for internal use in the predict section of lightning
+    def SNR_calc(self,x_hat,x):
+        for n in range(self.batch_size):
+            rx     = x_hat[n].cpu().detach().numpy()
+            rxbits = self.data.Qsym.Demod(rx)
+            rxbits = np.unpackbits(np.expand_dims(rxbits.astype(np.uint8),axis=1),axis=1)
+            rxbits = rxbits[:,-self.data.bitsframe:]
+            
+            txbits = self.data.Qsym.Demod(x[n].cpu().detach().numpy())
+            txbits = np.unpackbits(np.expand_dims(txbits.astype(np.uint8),axis=1),axis=1)
+            txbits = txbits[:,-self.data.bitsframe:]
+            
+            self.errors+=np.sum(rxbits!=txbits)
+            self.bits_num+=(rxbits.size)
         
+        #calculate BER
+        self.BER = self.errors/self.bits_num
+    
+    #this is call by final API  
+    def SNR_BER_TEST(self,trainer,csv_name):
+        
+        for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP*-1):
+            self.errors   = 0
+            self.BER      = 0
+            self.bits_num = 0
+            self.SNR_db   = n 
+            trainer.predict(self)
+            self.BER_list.append(self.BER)
+            print("SNR:{} BER:{}".format(self.SNR_db,self.BER))
+        
+        vector_to_pandas("BER_{}.csv".format(csv_name),self.BER_list,path="./BER_csv")
+            
+    def Get_Y(self,H,x,conj=False):
+        Y = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
+        for i in range(self.batch_size):
+            #0 real,1 imag
+            h = torch.complex(H[i,0,:, :],H[i,1,:, :])
+            z = h@x[i]
+            # Signal Power
+            Ps = torch.mean(torch.abs(z)**2)
+            # Noise power
+            Pn = Ps / (10**(self.SNR_db/10))
+            # Generate noise
+            noise = torch.sqrt(Pn/2)* (torch.randn(self.data.sym_no).to(self.device) + 1j*torch.randn(self.data.sym_no).to(self.device))
+            Y[i] = z+noise
+            if(conj == True):
+                Y[i] = (h.conj().resolve_conj()).T@Y[i]
+             
+        return Y
+    
+    def MSE_X(self,chann,Y):
+        x_mse = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
+        for i in range(chann.shape[0]):
+            H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
+            H_H = H.conj().resolve_conj().T
+            x_mse[i] = torch.linalg.inv(H_H@H)@H_H@Y[i]
+        return x_mse
+    
+    def LMSE_X(self,chann,Y):
+        x_lmse = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
+        for i in range(chann.shape[0]):
+            H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
+            H_H = H.conj().resolve_conj().T
+            #Signal power 
+            Ps = torch.mean(torch.abs(Y)**2)
+            # Noise power
+            Pn = Ps / (10**(self.SNR_db/10))
+            x_lmse[i] = torch.linalg.inv(H_H@H+torch.eye(48).to(self.device)*Pn)@H_H@Y[i]
+        return x_lmse
         

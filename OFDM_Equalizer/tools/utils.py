@@ -43,8 +43,11 @@ def read_plot_pandas(BER_list,labels,title=""):
     plot.savefig('{}/Results_{}.png'.format(PLOTS_PATH,get_time_string()))
            
 
-def vector_to_pandas(name,BER):
+def vector_to_pandas(name,BER,path=Test_PAHT):
     BER = np.asarray(BER)
     BER = np.flip(BER)
     df = pd.DataFrame(BER)
-    df.to_csv("{}/{}/{}".format(Test_PAHT,MONTH,name))
+    if(path == Test_PAHT):
+        df.to_csv("{}/{}/{}".format(path,MONTH,name))
+    else:
+        df.to_csv("{}/{}".format(path,name))
