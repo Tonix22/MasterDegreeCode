@@ -2,8 +2,8 @@ import urllib.request
 import os
 
 def Download_Mat_files():
-    url      = ['https://drive.google.com/u/0/uc?id=1sh4tXXERFQNsVAg6tqdNTsWax32UydAZ&export=download&confirm=t&uuid=ad2095b5-7e70-45b6-9149-eaf5b56ebce6&at=ALgDtswqDgWWAD3nLqDRiWXM1E7-:1674867736336',
-                'https://drive.google.com/u/0/uc?id=1RiHYtLoFAhiEBYysA5uFJ4lEU44vnpxB&export=download&confirm=t&uuid=a276fe70-2a61-44f2-8d26-a76134f1f59b&at=ALgDtszvZuLnpTZAxWTdMS1it1iw:1674868050671']
+    url      = ['https://drive.google.com/u/0/uc?id=1UhQhNHwPk5Ak8m8zKcE1z20eyu_9wYft&export=download&confirm=t&uuid=7ea3f81a-9d62-4a00-8784-e15ba740a2c9&at=ALgDtsyZmhpQ19Kpv5xArwfAEUBG:1675459749342',
+                'https://drive.google.com/u/0/uc?id=1aIN733FtAGO1BGg_5aO-hEHy4KValrNR&export=download&confirm=t&uuid=cfcae551-bf79-4b24-a949-4aaee5fb89f5&at=ALgDtswchvQSQyHttK7ADc33Ad-p:1675459810282']
     filename = ["/v2v80211p_LOS.mat","/v2v80211p_NLOS.mat"]
     main_path = os.path.dirname(os.path.abspath(__file__))+"/.."
     data_path = main_path+"/Data"

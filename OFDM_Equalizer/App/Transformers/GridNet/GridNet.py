@@ -21,17 +21,17 @@ from utils import vector_to_pandas, get_time_string
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 16
-NUM_EPOCHS = 20
-#NN parameters
-INPUT_SIZE  = 48
-HIDDEN_SIZE = 72 #48*1.5
+NUM_EPOCHS = 350
+#
+LAST_LIST  = 250
+
 #Optimizer
 LEARNING_RATE = .001
 EPSILON = .01
 
 # Model hyperparameters
 GRID_STEP = 1/8
-embedding_size = 128 
+embedding_size = 256
 num_heads      = 128 
 num_encoder_layers = 4
 num_decoder_layers = 4
@@ -55,7 +55,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
-        self.snr_db_values = [(50,40), (100,30), (125,20), (130,10),(150,5)]
+        self.snr_db_values = [(80,40), (130,30), (170,20), (200,10),(LAST_LIST,5)]
         #Grid config
         step = GRID_STEP
         # Define bins for the real and imaginary parts of the data
@@ -169,7 +169,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
       
     def SNR_select(self):
             
-        if(self.current_epoch < 150):
+        if(self.current_epoch < LAST_LIST):
             for lower, higher in self.snr_db_values:
                 if (self.current_epoch) <= lower:
                     self.SNR_db = higher
@@ -268,7 +268,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
                 #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/GridTransformer/lightning_logs/version_6/checkpoints/epoch=9-step=12000.ckpt')
     tf = GridTransformer(
     embedding_size,
