@@ -20,18 +20,21 @@ from utils import vector_to_pandas, get_time_string
 
 #Hyperparameters
 BATCHSIZE  = 10
-QAM        = 16
+QAM        = 4
 NUM_EPOCHS = 350
 #
-LAST_LIST  = 250
+LAST_LIST   = 250
+CONJ_ACTIVE = False
+#If use x or x_mse
+GROUND_TRUTH_SOFT = True # fts
 
 #Optimizer
 LEARNING_RATE = .001
 EPSILON = .01
 
 # Model hyperparameters
-GRID_STEP = 1/8
-embedding_size = 256
+GRID_STEP = 1/16
+embedding_size = 128
 num_heads      = 128 
 num_encoder_layers = 4
 num_decoder_layers = 4
@@ -52,26 +55,44 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         dropout,
         max_len):
         
-        
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
+        
+        # ------------ Telecom Stuff ------------
         self.snr_db_values = [(80,40), (130,30), (170,20), (200,10),(LAST_LIST,5)]
-        #Grid config
-        step = GRID_STEP
+        
+        # ------------ Grid config ------------
+        self.step = GRID_STEP
+        
+        #       ------------ Encode ------------
+        
         # Define bins for the real and imaginary parts of the data
-        self.binsx = torch.arange(-1, 1 + step, step)
-        self.binsy = torch.arange(-1, 1 + step, step)
+        self.binsx = torch.arange(-1, 1 + self.step, self.step)
+        self.binsy = torch.arange(-1, 1 + self.step, self.step)
         # Create a 2D bin index matrix for encoding
         self.binxy = torch.arange(start=4, end=4 + (len(self.binsx) - 1) * (len(self.binsy) - 1)).view(len(self.binsx) - 1, len(self.binsy) - 1)
         # Create empty tensors for storing the indices of the bins for the real and imaginary parts of the data
         self.x_indices = torch.zeros((BATCHSIZE, self.data.sym_no), dtype=torch.long)
         self.y_indices = torch.zeros((BATCHSIZE, self.data.sym_no), dtype=torch.long)
+        
+        #       ------------ Decode ------------
+        # Create empty tensors for storing the decoded values for the real and imaginary parts of the data
+        self.real_decoded = torch.zeros_like(self.x_indices)
+        self.imag_decoded = torch.zeros_like(self.y_indices)
+        
+        # ------------ Alphabet ------------
+        
         # sos 2 eos 3
         self.sos = torch.full((BATCHSIZE, 1), fill_value=2)
         self.eos = torch.full((BATCHSIZE, 1), fill_value=3)
         
+        # ----------- Network Sections -----
+        
+        #Loss
         self.loss_f     = torch.nn.CrossEntropyLoss()
-    
+        #soft_ground truth
+        self.ground_truth = GROUND_TRUTH_SOFT
+
         self.vocab_size = self.binxy.max()
         #Embedding section
         #src embedding
@@ -139,7 +160,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return out
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.0007,eps=.007)
+        return torch.optim.Adam(self.parameters(),lr=.0007,eps=.007,weight_decay=1e-5)
     
     #This function already does normalization 
     def grid_token(self,data):
@@ -166,6 +187,27 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         self.x_indices.zero_()
         
         return encoded.to(self.device)
+    
+    def grid_decode(self,encoded):
+        # Loop over the bins for the real and imaginary parts
+        for i in range(len(self.binsx) - 1):
+            for j in range(len(self.binsy) - 1):
+                # Find the indices of the encoded values that correspond to the current bin
+                indices = (encoded == self.binxy[j, i])
+                # Fill the decoded values for the real part
+                self.real_decoded[indices] = self.binsx[i] + self.step/2
+                # Fill the decoded values for the imaginary part
+                self.imag_decoded[indices] = self.binsy[j] + self.step/2
+        
+        # Create a tensor for the decoded data
+        data_decoded = torch.complex(self.real_decoded, self.imag_decoded)
+
+        # Clear tensor for next decoding
+        self.real_decoded.zero_()
+        self.imag_decoded.zero_()
+        
+        return data_decoded
+        
       
     def SNR_select(self):
             
@@ -186,11 +228,13 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         chann = chann.permute(0,3,1,2) 
         # Prepare GridTransformer
         #TODO test with conj True and False
-        Y     = self.Get_Y(chann,x,conj=False) 
+        Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE) 
         # Transform src values to grid tokens 
         src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
         
         #Get target tokens
+        if(self.ground_truth == True):
+            x = self.MSE_X(chann,Y)
         tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
         
         #model eval transformer
@@ -214,11 +258,13 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         chann = chann.permute(0,3,1,2) 
         # Prepare GridTransformer
         #TODO test with conj True and False
-        Y     = self.Get_Y(chann,x,conj=False) 
+        Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE) 
         # Transform src values to grid tokens 
         src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
         
         #Get target tokens
+        if(self.ground_truth == True):
+            x = self.MSE_X(chann,Y)
         tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
         
         #model eval transformer
@@ -238,21 +284,35 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return {'val_loss':avg_loss}
     
     def predict_step(self, batch, batch_idx):
-        if(batch_idx < 100):
+        
+        if(batch_idx < 10):
+            #self.SNR_db = ((40-self.current_epoch*10)%41)+5
+            self.SNR_select()
+            # training_step defines the train loop. It is independent of forward
             chann, x = batch
-            chann    = chann.permute(0,3,1,2)
-            Y        = self.Get_Y(chann,x,conj=True)
-            
-            #normalize factor, normalize by batch
-            src_abs_factor = torch.max(torch.abs(Y.abs()),dim=1, keepdim=True)[0]
-            src_abs        = Y.abs() / src_abs_factor
-            
-            output_abs = self(src_abs)
-            #de normalize
-            output_abs  = output_abs*src_abs_factor
-            
-            #torch polar polar(abs: Tensor, angle: Tensor)
-            x_hat    = torch.polar(output_abs,x.angle()).cpu().to(torch.float32)
+            # Chann Formating
+            chann = chann.permute(0,3,1,2) 
+            # Prepare GridTransformer
+            #TODO test with conj True and False
+            Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE) 
+            # Transform src values to grid tokens 
+            src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
+                        
+            x_hat = torch.zeros(x.shape)
+            for batch_i in range(0,BATCHSIZE):
+                outputs = [2]#"<sos>"
+                sentence_tensor = src_tokens[:,batch_i].unsqueeze(1)
+                for symbol in range(0,47):
+                    trg_tensor = torch.LongTensor(outputs).unsqueeze(1).to(self.device)
+                    output     = self(sentence_tensor, trg_tensor)
+                    best_guess = output.argmax(2)[-1, :].item()
+                    outputs.append(best_guess)
+                    # Concatenate previous input with predicted best word
+                x_hat[batch_i] = torch.Tensor(outputs)
+        
+            #Get target tokens
+            #degrid rx_bits
+            x_hat = self.grid_decode(x_hat)
             self.SNR_calc(x_hat,x) 
             
         return 0 
@@ -268,7 +328,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
                 #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/GridTransformer/lightning_logs/version_6/checkpoints/epoch=9-step=12000.ckpt')
     tf = GridTransformer(
     embedding_size,

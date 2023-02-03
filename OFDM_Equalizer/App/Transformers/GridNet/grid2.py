@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # Define the batch size and sequence length
 batch, seqlen = 4, 48
 # Define the step size for binning
-step = 1/8
+step = 1/16
 
 # Generate complex valued random data and convert it to the torch complex128 data type
 data           = torch.complex(torch.rand((batch, seqlen))*2-1 ,torch.rand((batch, seqlen))*2-1).to(torch.complex128)
@@ -36,6 +36,28 @@ for i in range(len(binsx) - 1):
 
 # Encode the data by selecting the corresponding bin indices from the bin index matrix
 encoded = binxy[y_indices, x_indices]
+
+"""
+# Create empty tensors for storing the decoded values for the real and imaginary parts of the data
+real_decoded = torch.zeros_like(data.real)
+imag_decoded = torch.zeros_like(data.imag)
+
+# Loop over the bins for the real and imaginary parts
+for i in range(len(binsx) - 1):
+    for j in range(len(binsy) - 1):
+        # Find the indices of the encoded values that correspond to the current bin
+        indices = (encoded == binxy[j, i])
+        # Fill the decoded values for the real part
+        real_decoded[indices] = binsx[i] + step/2
+        # Fill the decoded values for the imaginary part
+        imag_decoded[indices] = binsy[j] + step/2
+
+# Create a tensor for the decoded data
+data_decoded = torch.complex(real_decoded, imag_decoded)
+
+# Denormalize the decoded data by multiplying it with the original maximum absolute value
+data_decoded = data_decoded * src_abs_factor
+"""
 
 
 # Extract the real and imaginary parts of the complex numbers
