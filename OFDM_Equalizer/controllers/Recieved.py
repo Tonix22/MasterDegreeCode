@@ -144,19 +144,22 @@ class Rx_loader(object):
         
         vector_to_pandas("BER_{}.csv".format(csv_name),self.BER_list,path="./BER_csv")
             
-    def Get_Y(self,H,x,conj=False):
+    def Get_Y(self,H,x,conj=False,noise_activ = True):
         Y = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
         for i in range(self.batch_size):
             #0 real,1 imag
             h = torch.complex(H[i,0,:, :],H[i,1,:, :])
             z = h@x[i]
-            # Signal Power
-            Ps = torch.mean(torch.abs(z)**2)
-            # Noise power
-            Pn = Ps / (10**(self.SNR_db/10))
-            # Generate noise
-            noise = torch.sqrt(Pn/2)* (torch.randn(self.data.sym_no).to(self.device) + 1j*torch.randn(self.data.sym_no).to(self.device))
-            Y[i] = z+noise
+            
+            if(noise_activ == True):
+                # Signal Power
+                Ps = torch.mean(torch.abs(z)**2)
+                # Noise power
+                Pn = Ps / (10**(self.SNR_db/10))
+                # Generate noise
+                noise = torch.sqrt(Pn/2)* (torch.randn(self.data.sym_no).to(self.device) + 1j*torch.randn(self.data.sym_no).to(self.device))
+                Y[i] = z+noise
+            
             if(conj == True):
                 Y[i] = (h.conj().resolve_conj()).T@Y[i]
              
