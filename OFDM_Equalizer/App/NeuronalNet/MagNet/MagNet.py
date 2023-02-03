@@ -63,13 +63,14 @@ class AnglePhaseNet(pl.LightningModule,Rx_loader):
         Y     = self.Get_Y(chann,x,conj=True)
         
         #normalize factor, normalize by batch
-        src_abs_factor = torch.max(torch.abs(Y.abs()),dim=1, keepdim=True)[0]
-        src_abs        = Y.abs() / src_abs_factor
+        src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
+        src_abs        = Y / src_abs_factor
+        src_abs        = src_abs.abs()
         
         #Normalize target 
-        tgt_abs_factor = torch.max(torch.abs(x.abs()),dim=1, keepdim=True)[0]
-        tgt_abs        = x.abs()/tgt_abs_factor
-        
+        tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
+        tgt_abs        = x/tgt_abs_factor
+        tgt_abs        = x.abs()        
         #model eval
         output_abs = self(src_abs)
         #loss func
@@ -89,12 +90,14 @@ class AnglePhaseNet(pl.LightningModule,Rx_loader):
         Y     = self.Get_Y(chann,x,conj=True)
         
         #normalize factor, normalize by batch
-        src_abs_factor = torch.max(torch.abs(Y.abs()),dim=1, keepdim=True)[0]
-        src_abs        = Y.abs() / src_abs_factor
+        src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
+        src_abs        = Y / src_abs_factor
+        src_abs        = Y.abs()
         
         #Normalize target 
-        tgt_abs_factor = torch.max(torch.abs(x.abs()),dim=1, keepdim=True)[0]
-        tgt_abs        = x.abs()/tgt_abs_factor
+        tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
+        tgt_abs        = x/tgt_abs_factor
+        tgt_abs        = x.abs()
         
         #model eval
         output_abs = self(src_abs)
@@ -116,10 +119,10 @@ class AnglePhaseNet(pl.LightningModule,Rx_loader):
             Y        = self.Get_Y(chann,x,conj=True)
             
             #normalize factor, normalize by batch
-            src_abs_factor = torch.max(torch.abs(Y.abs()),dim=1, keepdim=True)[0]
-            src_abs        = Y.abs() / src_abs_factor
+            src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
+            src_abs        = Y / src_abs_factor
             
-            output_abs = self(src_abs)
+            output_abs = self(src_abs.abs())
             #de normalize
             output_abs  = output_abs*src_abs_factor
             
