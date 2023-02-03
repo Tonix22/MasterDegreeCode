@@ -29,12 +29,35 @@ HIDDEN_SIZE = 72 #48*1.5
 LEARNING_RATE = .001
 EPSILON = .01
 
+# Model hyperparameters
+GRID_STEP = 1/8
+embedding_size = 128 
+num_heads      = 128 
+num_encoder_layers = 4
+num_decoder_layers = 4
+dropout = 0.10
+max_len = 50
+forward_expansion = 4
+src_pad_idx       = 1
+
+
 class GridTransformer(pl.LightningModule,Rx_loader):
-    def __init__(self):
+    def __init__(self,
+        embedding_size,
+        src_pad_idx,
+        num_heads,
+        num_encoder_layers,
+        num_decoder_layers,
+        forward_expansion,
+        dropout,
+        max_len):
+        
+        
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
+        self.snr_db_values = [(50,40), (100,30), (125,20), (130,10),(150,5)]
         #Grid config
-        step = 1/8
+        step = GRID_STEP
         # Define bins for the real and imaginary parts of the data
         self.binsx = torch.arange(-1, 1 + step, step)
         self.binsy = torch.arange(-1, 1 + step, step)
@@ -47,12 +70,73 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         self.sos = torch.full((BATCHSIZE, 1), fill_value=2)
         self.eos = torch.full((BATCHSIZE, 1), fill_value=3)
         
-        self.loss_f    = torch.nn.CrossEntropyLoss()
+        self.loss_f     = torch.nn.CrossEntropyLoss()
+    
+        self.vocab_size = self.binxy.max()
+        #Embedding section
+        #src embedding
+        self.src_word_embedding     = nn.Embedding(self.vocab_size , embedding_size)
+        self.src_position_embedding = nn.Embedding(max_len,        embedding_size)
+        #target embedding
+        self.trg_word_embedding     = nn.Embedding(self.vocab_size , embedding_size)
+        self.trg_position_embedding = nn.Embedding(max_len,        embedding_size)
         
-        self.linear = torch.nn.Linear(10,20)
+        #transfomer network
+        self.transformer = nn.Transformer(
+            embedding_size,
+            num_heads,
+            num_encoder_layers,
+            num_decoder_layers,
+            forward_expansion,
+            dropout,
+        )
+        self.fc_out      = nn.Linear(embedding_size, self.vocab_size)
+        self.dropout     = nn.Dropout(dropout)
+        self.src_pad_idx = src_pad_idx
         
-    def forward(self,abs):        
-        return self.linear(abs)
+
+    def make_src_mask(self, src):
+        src_mask = src.transpose(0, 1) == self.src_pad_idx
+        # (N, src_len)
+        return src_mask.to(self.device)
+
+    def forward(self,src,trg):
+        src_seq_length, N = src.shape
+        trg_seq_length, N = trg.shape
+
+        src_positions = (
+            torch.arange(0, src_seq_length)
+            .unsqueeze(1)
+            .expand(src_seq_length, N)
+            .to(self.device)
+        )
+
+        trg_positions = (
+            torch.arange(0, trg_seq_length)
+            .unsqueeze(1)
+            .expand(trg_seq_length, N)
+            .to(self.device)
+        )
+            
+        embed_src = self.dropout(
+            (self.src_word_embedding(src) + self.src_position_embedding(src_positions))
+        )
+        
+        embed_trg = self.dropout(
+            (self.trg_word_embedding(trg) + self.trg_position_embedding(trg_positions))
+        )
+        
+        src_padding_mask = self.make_src_mask(src)
+        trg_mask         = self.transformer.generate_square_subsequent_mask(trg_seq_length).to(self.device)
+        
+        out = self.transformer(
+            embed_src,
+            embed_trg,
+            src_key_padding_mask=src_padding_mask,
+            tgt_mask=trg_mask,
+        )
+        out = self.fc_out(out)
+        return out
     
     def configure_optimizers(self): 
         return torch.optim.Adam(self.parameters(),lr=.0007,eps=.007)
@@ -83,8 +167,19 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         
         return encoded
       
+    def SNR_select(self):
+            
+        if(self.current_epoch < 150):
+            for lower, higher in self.snr_db_values:
+                if (self.current_epoch) <= lower:
+                    self.SNR_db = higher
+                    break
+        else:
+            self.SNR_db = (self.SNR_db+1)%35+5
+      
     def training_step(self, batch, batch_idx):
-        self.SNR_db = ((40-self.current_epoch*10)%41)+5
+        #self.SNR_db = ((40-self.current_epoch*10)%41)+5
+        self.SNR_select()
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         # Chann Formating
@@ -99,17 +194,20 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
         
         #model eval transformer
-        output_tokens = self(src_tokens)
+        output = self(src_tokens,tgt_tokens[:-1, :])
+        output = output.reshape(-1, output.shape[2]) # then we merge first two dim
         
         #loss func
-        loss  = self.loss_f(output_tokens,tgt_tokens)
+        target = tgt_tokens[1:].reshape(-1)
+        loss   = self.loss_f(output,target)
         
         self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
-        self.SNR_db = ((40-self.current_epoch*10)%41)+5
+        #self.SNR_db = ((40-self.current_epoch*10)%41)+5
+        self.SNR_select()
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         # Chann Formating
@@ -124,10 +222,12 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
         
         #model eval transformer
-        output_tokens = self(src_tokens)
+        output = self(src_tokens,tgt_tokens[:-1, :])
+        output = output.reshape(-1, output.shape[2]) # then we merge first two dim
         
         #loss func
-        loss  = self.loss_f(output_tokens,tgt_tokens)
+        target = tgt_tokens[1:].reshape(-1)
+        loss   = self.loss_f(output,target)
         
         self.log('val_loss', loss) #tensorboard logs
         return {'val_loss':loss}
@@ -168,10 +268,19 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
                 #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/GridTransformer/lightning_logs/version_6/checkpoints/epoch=9-step=12000.ckpt')
-    Cn = GridTransformer()
-    trainer.fit(Cn)
+    tf = GridTransformer(
+    embedding_size,
+    src_pad_idx,
+    num_heads,
+    num_encoder_layers,
+    num_decoder_layers,
+    forward_expansion,
+    dropout,
+    max_len)
+    
+    trainer.fit(tf)
     
     #name of output log file 
     #formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
