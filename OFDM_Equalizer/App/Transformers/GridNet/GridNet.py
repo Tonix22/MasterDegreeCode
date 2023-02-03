@@ -33,46 +33,76 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     def __init__(self):
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
-        step   = 1/QAM
-        self.x_axis = torch.arange(-1, 1+step, step)
-        self.y_axis = torch.arange(-1, 1+step,step)
-        self.loss_f = nn.MSELoss()
+        #Grid config
+        step = 1/8
+        # Define bins for the real and imaginary parts of the data
+        self.binsx = torch.arange(-1, 1 + step, step)
+        self.binsy = torch.arange(-1, 1 + step, step)
+        # Create a 2D bin index matrix for encoding
+        self.binxy = torch.arange(start=4, end=4 + (len(self.binsx) - 1) * (len(self.binsy) - 1)).view(len(self.binsx) - 1, len(self.binsy) - 1)
+        # Create empty tensors for storing the indices of the bins for the real and imaginary parts of the data
+        self.x_indices = torch.zeros((BATCHSIZE, self.data.sym_no), dtype=torch.long)
+        self.y_indices = torch.zeros((BATCHSIZE, self.data.sym_no), dtype=torch.long)
+        # sos 2 eos 3
+        self.sos = torch.full((BATCHSIZE, 1), fill_value=2)
+        self.eos = torch.full((BATCHSIZE, 1), fill_value=3)
+        
+        self.loss_f    = torch.nn.CrossEntropyLoss()
+        
+        self.linear = torch.nn.Linear(10,20)
         
     def forward(self,abs):        
-        return self.mag_net(abs)
+        return self.linear(abs)
     
     def configure_optimizers(self): 
         return torch.optim.Adam(self.parameters(),lr=.0007,eps=.007)
     
+    #This function already does normalization 
     def grid_token(self,data):
-        mask    = (self.x_axis[:-1] <= data) & (data <= self.x_axis[1:])
-        point_x = mask.nonzero().squeeze()
-        #Y point
-        mask    = (self.x_axis[:-1] <= data) & (data <= self.x_axis[1:])
-        point_y = mask.nonzero().squeeze()
+        # Get the absolute maximum value of the data along the sequence dimension (dim=1)
+        # Keep the first dimension with keepdim=True for broadcasting purposes
+        src_abs_factor = torch.max(torch.abs(data),dim=1, keepdim=True)[0]
+
+        # Normalize the data by dividing it with the maximum absolute value
+        data = data/src_abs_factor
         
+        # Loop over the bins for the real and imaginary parts
+        for i in range(len(self.binsx) - 1):
+            # Find the indices of the data that lie within the current bin for the real part
+            self.x_indices[(self.binsx[i] <= data.real) & (data.real < self.binsx[i + 1])] = i
+            # Same for imaginary part
+            self.y_indices[(self.binsy[i] <= data.imag) & (data.imag < self.binsy[i + 1])] = i
+        
+
+        # Encode the data by selecting the corresponding bin indices from the bin index matrix
+        encoded = self.binxy[self.y_indices, self.x_indices]
+        encoded = torch.cat((self.sos,encoded,self.eos),dim=1)
+        # Clear tensor for next encoding
+        self.y_indices.zero_()
+        self.x_indices.zero_()
+        
+        return encoded
       
     def training_step(self, batch, batch_idx):
         self.SNR_db = ((40-self.current_epoch*10)%41)+5
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
-        #chann preparation
-        chann = chann.permute(0,3,1,2)
-        #chann preparationGridTransformer
-        Y     = self.Get_Y(chann,x,conj=True)
+        # Chann Formating
+        chann = chann.permute(0,3,1,2) 
+        # Prepare GridTransformer
+        #TODO test with conj True and False
+        Y     = self.Get_Y(chann,x,conj=False) 
+        # Transform src values to grid tokens 
+        src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
         
-        #normalize factor, normalize by batch
-        src_abs_factor = torch.max(torch.abs(Y.abs()),dim=1, keepdim=True)[0]
-        src_abs        = Y.abs() / src_abs_factor
+        #Get target tokens
+        tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
         
-        #Normalize target 
-        tgt_abs_factor = torch.max(torch.abs(x.abs()),dim=1, keepdim=True)[0]
-        tgt_abs        = x.abs()/tgt_abs_factor
+        #model eval transformer
+        output_tokens = self(src_tokens)
         
-        #model eval
-        output_abs = self(src_abs)
         #loss func
-        loss  = self.loss_f(output_abs,tgt_abs)
+        loss  = self.loss_f(output_tokens,tgt_tokens)
         
         self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         self.log("train_loss", loss) #tensorboard logs
@@ -82,23 +112,22 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         self.SNR_db = ((40-self.current_epoch*10)%41)+5
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
-        #chann preparation
-        chann = chann.permute(0,3,1,2)
-        #chann preparationGridTransformer
-        Y     = self.Get_Y(chann,x,conj=True)
+        # Chann Formating
+        chann = chann.permute(0,3,1,2) 
+        # Prepare GridTransformer
+        #TODO test with conj True and False
+        Y     = self.Get_Y(chann,x,conj=False) 
+        # Transform src values to grid tokens 
+        src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
         
-        #normalize factor, normalize by batch
-        src_abs_factor = torch.max(torch.abs(Y.abs()),dim=1, keepdim=True)[0]
-        src_abs        = Y.abs() / src_abs_factor
+        #Get target tokens
+        tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
         
-        #Normalize target 
-        tgt_abs_factor = torch.max(torch.abs(x.abs()),dim=1, keepdim=True)[0]
-        tgt_abs        = x.abs()/tgt_abs_factor
+        #model eval transformer
+        output_tokens = self(src_tokens)
         
-        #model eval
-        output_abs = self(src_abs)
         #loss func
-        loss  = self.loss_f(output_abs,tgt_abs)
+        loss  = self.loss_f(output_tokens,tgt_tokens)
         
         self.log('val_loss', loss) #tensorboard logs
         return {'val_loss':loss}
@@ -139,14 +168,14 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
                 #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/GridTransformer/lightning_logs/version_6/checkpoints/epoch=9-step=12000.ckpt')
-    Cn = GridTransformer(INPUT_SIZE,HIDDEN_SIZE)
+    Cn = GridTransformer()
     trainer.fit(Cn)
     
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
-    Cn.SNR_BER_TEST(trainer,formating)
+    #formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
+    #Cn.SNR_BER_TEST(trainer,formating)
     
 
     
