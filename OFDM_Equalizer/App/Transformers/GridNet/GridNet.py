@@ -165,7 +165,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         self.y_indices.zero_()
         self.x_indices.zero_()
         
-        return encoded
+        return encoded.to(self.device)
       
     def SNR_select(self):
             
