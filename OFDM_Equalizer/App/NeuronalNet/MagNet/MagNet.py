@@ -19,23 +19,38 @@ from Recieved import RX,Rx_loader
 from utils import vector_to_pandas, get_time_string
 
 #Hyperparameters
-BATCHSIZE  = 10
+BATCHSIZE  = 20
 QAM        = 16
-NUM_EPOCHS = 20
+NUM_EPOCHS = 202
+#
+LAST_LIST   = 250
+CONJ_ACTIVE = True
+#If use x or x_mse
+GROUND_TRUTH_SOFT = False # fts
+NOISE = False
 #NN parameters
 INPUT_SIZE  = 48
-HIDDEN_SIZE = 72 #48*1.5
+HIDDEN_SIZE = 72 
+
 #Optimizer
 LEARNING_RATE = .001
 EPSILON = .01
 
-class AnglePhaseNet(pl.LightningModule,Rx_loader):
+class AngleMagnitud(pl.LightningModule,Rx_loader):
     def __init__(self, input_size, hidden_size):
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
         
         self.mag_net = nn.Sequential(
-            nn.Hardtanh(),
+            nn.GELU(),
+            nn.Linear(input_size, hidden_size,bias=True),
+            nn.GELU(),
+            nn.Linear(hidden_size, hidden_size*int(2),bias=True),
+            nn.GELU(),
+            nn.Linear(hidden_size*int(2), input_size,bias=True),
+            nn.GELU()
+        ).double()
+        self.angle_net = nn.Sequential(
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
             nn.Linear(hidden_size, hidden_size*int(2),bias=True),
@@ -44,11 +59,10 @@ class AnglePhaseNet(pl.LightningModule,Rx_loader):
             nn.Hardtanh()
         ).double()
         
-        
         self.loss_f = nn.MSELoss()
         
-    def forward(self,abs):        
-        return self.mag_net(abs)
+    def forward(self,abs,phase):        
+        return self.mag_net(abs),self.angle_net(phase)
     
     def configure_optimizers(self): 
         return torch.optim.Adam(self.parameters(),lr=.0007,eps=.007)
@@ -60,21 +74,28 @@ class AnglePhaseNet(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         #chann preparationAnglePhaseNet
-        Y     = self.Get_Y(chann,x,conj=True)
+        Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=NOISE)
         
+        # ------------ Source Data ------------
         #normalize factor, normalize by batch
         src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
         src_abs        = Y / src_abs_factor
         src_abs        = src_abs.abs()
+        src_angle_factor = (torch.angle(Y) + np.pi) / (2 * np.pi)
         
+        # ------------ Target Data ------------
         #Normalize target 
         tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
         tgt_abs        = x/tgt_abs_factor
-        tgt_abs        = x.abs()        
+        tgt_abs        = tgt_abs.abs()    
+        tgt_angle_factor = (torch.angle(x) + np.pi) / (2 * np.pi)
+        
         #model eval
-        output_abs = self(src_abs)
+        output_abs,output_angle = self(src_abs,src_angle_factor)
+        output = torch.cat((torch.unsqueeze(output_abs,2),torch.unsqueeze(output_angle,2)),dim=2)
+        target = torch.cat((torch.unsqueeze(tgt_abs,2),torch.unsqueeze(tgt_angle_factor,2)),dim=2)
         #loss func
-        loss  = self.loss_f(output_abs,tgt_abs)
+        loss  = self.loss_f(output,target)
         
         self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         self.log("train_loss", loss) #tensorboard logs
@@ -87,22 +108,29 @@ class AnglePhaseNet(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         #chann preparationAnglePhaseNet
-        Y     = self.Get_Y(chann,x,conj=True)
+        Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=NOISE)
         
+        # ------------ Source Data ------------
         #normalize factor, normalize by batch
         src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
         src_abs        = Y / src_abs_factor
-        src_abs        = Y.abs()
+        src_abs        = src_abs.abs()
+        src_angle_factor = (torch.angle(Y) + np.pi) / (2 * np.pi)
         
+        # ------------ Target Data ------------
         #Normalize target 
         tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
         tgt_abs        = x/tgt_abs_factor
-        tgt_abs        = x.abs()
+        tgt_abs        = tgt_abs.abs()    
+        tgt_angle_factor = (torch.angle(x) + np.pi) / (2 * np.pi)
         
         #model eval
-        output_abs = self(src_abs)
+        output_abs,output_angle = self(src_abs,src_angle_factor)
+        output = torch.cat((torch.unsqueeze(output_abs,2),torch.unsqueeze(output_angle,2)),dim=2)
+        target = torch.cat((torch.unsqueeze(tgt_abs,2),torch.unsqueeze(tgt_angle_factor,2)),dim=2)
         #loss func
-        loss  = self.loss_f(output_abs,tgt_abs)
+        loss  = self.loss_f(output,target)
+        
         
         self.log('val_loss', loss) #tensorboard logs
         return {'val_loss':loss}
@@ -113,21 +141,40 @@ class AnglePhaseNet(pl.LightningModule,Rx_loader):
         return {'val_loss':avg_loss}
     
     def predict_step(self, batch, batch_idx):
-        if(batch_idx < 100):
+        if(batch_idx < 50):
             chann, x = batch
             chann    = chann.permute(0,3,1,2)
-            Y        = self.Get_Y(chann,x,conj=True)
+            Y        = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=False)
             
+            
+            # ------------ Source Data ------------
             #normalize factor, normalize by batch
             src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
             src_abs        = Y / src_abs_factor
+            src_abs        = src_abs.abs()
+            src_angle_factor = (torch.angle(Y) + np.pi) / (2 * np.pi)
             
-            output_abs = self(src_abs.abs())
-            #de normalize
-            output_abs  = output_abs*src_abs_factor
+            # ------------ Target Data ------------
+            #Normalize target 
+            tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
+            tgt_abs        = x/tgt_abs_factor
+            tgt_abs        = tgt_abs.abs()    
             
+            # ------------ Model Eval ------------
+            #normalize factor, normalize by batch            
+            output_abs,output_angle = self(src_abs,src_angle_factor)
+            # ------------ Denormalize ------------
+            #denormalize angle
+            output_angle = output_angle*(2 * torch.pi)-torch.pi
+            # ------------ Polar trans ------------
+            #transform output to polar
+            x_hat    = torch.polar(output_abs,output_angle)
+            x        = torch.polar(tgt_abs,x.angle())
+            
+            x_hat = x_hat.cpu().to(torch.float32)
+            x     = x.cpu().to(torch.float32)
             #torch polar polar(abs: Tensor, angle: Tensor)
-            x_hat    = torch.polar(output_abs,x.angle()).cpu().to(torch.float32)
+           
             self.SNR_calc(x_hat,x) 
             
         return 0 
@@ -143,9 +190,9 @@ class AnglePhaseNet(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/AnglePhaseNet/lightning_logs/version_6/checkpoints/epoch=9-step=12000.ckpt')
-    Cn = AnglePhaseNet(INPUT_SIZE,HIDDEN_SIZE)
+    trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
+                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/MagNet/lightning_logs/version_151/checkpoints/epoch=201-step=121200.ckpt')
+    Cn = AngleMagnitud(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
     #name of output log file 
