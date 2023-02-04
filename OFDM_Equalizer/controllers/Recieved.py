@@ -149,9 +149,9 @@ class Rx_loader(object):
         for i in range(self.batch_size):
             #0 real,1 imag
             h = torch.complex(H[i,0,:, :],H[i,1,:, :])
-            z = h@x[i]
-            
+            Y[i] = h@x[i]
             if(noise_activ == True):
+                z = Y[i]
                 # Signal Power
                 Ps = torch.mean(torch.abs(z)**2)
                 # Noise power
