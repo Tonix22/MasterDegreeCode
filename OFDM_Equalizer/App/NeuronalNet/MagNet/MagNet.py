@@ -21,7 +21,7 @@ from utils import vector_to_pandas, get_time_string
 #Hyperparameters
 BATCHSIZE  = 20
 QAM        = 16
-NUM_EPOCHS = 202
+NUM_EPOCHS = 70
 #
 LAST_LIST   = 250
 CONJ_ACTIVE = True
@@ -42,13 +42,12 @@ class AngleMagnitud(pl.LightningModule,Rx_loader):
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
         
         self.mag_net = nn.Sequential(
-            nn.GELU(),
             nn.Linear(input_size, hidden_size,bias=True),
-            nn.GELU(),
+            nn.Hardtanh(),
             nn.Linear(hidden_size, hidden_size*int(2),bias=True),
-            nn.GELU(),
+            nn.Hardtanh(),
             nn.Linear(hidden_size*int(2), input_size,bias=True),
-            nn.GELU()
+            nn.Hardtanh()
         ).double()
         self.angle_net = nn.Sequential(
             nn.Linear(input_size, hidden_size,bias=True),
@@ -56,7 +55,7 @@ class AngleMagnitud(pl.LightningModule,Rx_loader):
             nn.Linear(hidden_size, hidden_size*int(2),bias=True),
             nn.Hardtanh(),
             nn.Linear(hidden_size*int(2), input_size,bias=True),
-            nn.Hardtanh()
+            nn.Hardtanh(),
         ).double()
         
         self.loss_f = nn.MSELoss()
@@ -198,8 +197,8 @@ class AngleMagnitud(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/MagNet/lightning_logs/version_151/checkpoints/epoch=201-step=121200.ckpt')
+    trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
+                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/MagNet/lightning_logs/version_211/checkpoints/epoch=70-step=85200.ckpt')
     Cn = AngleMagnitud(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
