@@ -16,7 +16,8 @@ class QAM():
         #constelation size
         self.constelation = constelation
         #get QAM array
-        self.QAM_N_arr = QAM_dict[cont_type][constelation]
+        self.QAM_N_arr = QAM_dict[cont_type][constelation] #TODO normlize it with abs
+        self.QAM_norm_arr = self.QAM_N_arr/np.max(np.abs(self.QAM_N_arr))
         #fixed random seed
         #np.random.seed(42)
         #Generate N bits
@@ -49,17 +50,24 @@ class QAM():
         self.GroundTruth = np.expand_dims(self.GroundTruth,axis=1)
         self.r = np.expand_dims(self.r,axis=1)
     
-    def Demod(self,vect):
+    def Demod(self,vec,norm = False):
+        
+        if(norm == False):
+            base = self.QAM_N_arr
+        else:
+            base = self.QAM_norm_arr
+        
         bits  = []
-        IQ_defect  = np.asarray(vect)
+        IQ_defect  = np.asarray(vec)
         for IQ in np.nditer(IQ_defect):
-            distances = np.zeros(self.QAM_N_arr.size)
-            for n in range(0,self.QAM_N_arr.size):
-                Block_angle = self.QAM_N_arr[n]
+            distances = np.zeros(base.size)
+            for n in range(0,base.size):
+                Block_angle = base[n]
                 distances[n]= sqrt((IQ.real-Block_angle.real)**2+(IQ.imag-Block_angle.imag)**2)
             bits.append(np.argmin(distances))
 
         return np.asarray(bits)
+    
     
         
     def QPSK_Plot(self,vect):

@@ -144,7 +144,7 @@ class AngleMagnitud(pl.LightningModule,Rx_loader):
         if(batch_idx < 50):
             chann, x = batch
             chann    = chann.permute(0,3,1,2)
-            Y        = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=False)
+            Y        = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=True)
             
             
             # ------------ Source Data ------------
@@ -158,24 +158,32 @@ class AngleMagnitud(pl.LightningModule,Rx_loader):
             #Normalize target 
             tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
             tgt_abs        = x/tgt_abs_factor
-            tgt_abs        = tgt_abs.abs()    
+            tgt_abs        = tgt_abs.abs()
+            tgt_angle_factor = (torch.angle(x) + np.pi) / (2 * np.pi)
             
             # ------------ Model Eval ------------
             #normalize factor, normalize by batch            
             output_abs,output_angle = self(src_abs,src_angle_factor)
+            # ------------ Predict Loss ------------
+            output = torch.cat((torch.unsqueeze(output_abs,2),torch.unsqueeze(output_angle,2)),dim=2)
+            target = torch.cat((torch.unsqueeze(tgt_abs,2),torch.unsqueeze(tgt_angle_factor,2)),dim=2)
+            loss   = self.loss_f(output,target)
             # ------------ Denormalize ------------
             #denormalize angle
-            output_angle = output_angle*(2 * torch.pi)-torch.pi
+            output_angle     = output_angle*(2 * torch.pi)-torch.pi
+            x_angle          = tgt_angle_factor*(2 * torch.pi)-torch.pi
+            
+            
             # ------------ Polar trans ------------
             #transform output to polar
             x_hat    = torch.polar(output_abs,output_angle)
-            x        = torch.polar(tgt_abs,x.angle())
+            x_t      = torch.polar(tgt_abs,x_angle)
             
             x_hat = x_hat.cpu().to(torch.float32)
-            x     = x.cpu().to(torch.float32)
+            x_t   = x_t.cpu().to(torch.float32)
             #torch polar polar(abs: Tensor, angle: Tensor)
            
-            self.SNR_calc(x_hat,x) 
+            self.SNR_calc(x_hat,x_t,norm=True) 
             
         return 0 
     

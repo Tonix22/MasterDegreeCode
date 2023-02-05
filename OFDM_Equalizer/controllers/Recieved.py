@@ -113,14 +113,14 @@ class Rx_loader(object):
         self.BER_list = []
     
     #for internal use in the predict section of lightning
-    def SNR_calc(self,x_hat,x):
+    def SNR_calc(self,x_hat,x,norm=False):
         for n in range(self.batch_size):
             rx     = x_hat[n].cpu().detach().numpy()
-            rxbits = self.data.Qsym.Demod(rx)
+            rxbits = self.data.Qsym.Demod(rx,norm=norm)
             rxbits = np.unpackbits(np.expand_dims(rxbits.astype(np.uint8),axis=1),axis=1)
             rxbits = rxbits[:,-self.data.bitsframe:]
             
-            txbits = self.data.Qsym.Demod(x[n].cpu().detach().numpy())
+            txbits = self.data.Qsym.Demod(x[n].cpu().detach().numpy(),norm=norm)
             txbits = np.unpackbits(np.expand_dims(txbits.astype(np.uint8),axis=1),axis=1)
             txbits = txbits[:,-self.data.bitsframe:]
             
