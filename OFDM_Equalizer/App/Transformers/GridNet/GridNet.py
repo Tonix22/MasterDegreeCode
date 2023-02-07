@@ -19,9 +19,9 @@ from Recieved import RX,Rx_loader
 from utils import vector_to_pandas, get_time_string
 
 #Hyperparameters
-BATCHSIZE  = 20
+BATCHSIZE  = 10
 QAM        = 16
-NUM_EPOCHS = 144
+NUM_EPOCHS = 100
 #
 LAST_LIST   = 250
 CONJ_ACTIVE = True
@@ -34,14 +34,14 @@ LEARNING_RATE = .001
 EPSILON = .01
 
 # Model hyperparameters
-GRID_STEP = 1/8
-embedding_size = 128
-num_heads      = 128 
-num_encoder_layers = 4
-num_decoder_layers = 4
+GRID_STEP = 1/4
+embedding_size = 512
+num_heads      = 8
+num_encoder_layers = 6
+num_decoder_layers = 6
 dropout = 0.10
 max_len = 50
-forward_expansion = 4
+forward_expansion = 2048 # default 
 src_pad_idx       = 1
 
 
@@ -111,6 +111,8 @@ class GridTransformer(pl.LightningModule,Rx_loader):
             num_decoder_layers,
             forward_expansion,
             dropout,
+            activation="gelu",
+            norm_first=True
         )
         self.fc_out      = nn.Linear(embedding_size, self.vocab_size)
         self.dropout     = nn.Dropout(dropout)
@@ -287,15 +289,12 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     def predict_step(self, batch, batch_idx):
         
         if(batch_idx < 10):
-            #self.SNR_db = ((40-self.current_epoch*10)%41)+5
-            #self.SNR_select()
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             # Chann Formating
             chann = chann.permute(0,3,1,2) 
             # Prepare GridTransformer
-            #TODO test with conj True and False
-            Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=NOISE) 
+            Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=True) 
             # Transform src values to grid tokens 
             src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
                         
@@ -319,7 +318,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
             # Normalize the data by dividing it with the maximum absolute value
             x = x/src_abs_factor
             
-            self.SNR_calc(x_hat,x) 
+            self.SNR_calc(x_hat,x,norm=True) 
             
         return 0 
     
