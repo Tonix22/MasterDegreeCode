@@ -20,8 +20,8 @@ from Recieved import RX,Rx_loader
 from utils import get_time_string
 
 #Hyperparameters
-BATCHSIZE  = 10
-QAM        = 16
+BATCHSIZE  = 100
+QAM        = 4
 ESTIM      = "LMSE"
 
 class Golden(pl.LightningModule,Rx_loader):
@@ -43,14 +43,13 @@ class Golden(pl.LightningModule,Rx_loader):
         return torch.optim.Adam(self.parameters())    
     
     def predict_step(self, batch, batch_idx):
-        if(batch_idx < 100):
-            chann, x = batch
-            chann    = chann.permute(0,3,1,2)
-            Y        = self.Get_Y(chann,x)
-            x_hat    = self.estimator(chann,Y)
-            self.SNR_calc(x_hat,x)   
-            
+        chann, x = batch
+        chann    = chann.permute(0,3,1,2)
+        Y        = self.Get_Y(chann,x)
+        x_hat    = self.estimator(chann,Y)
+        self.SNR_calc(x_hat,x)
         return 0
+            
     
     def predict_dataloader(self):
         return self.test_loader
