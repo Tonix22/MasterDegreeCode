@@ -16,8 +16,22 @@ sys.path.insert(0, main_path+"controllers")
 from Recieved import RX,Rx_loader
 
 #Hyperparameters
-BATCHSIZE  = 10
-NUM_EPOCHS = 500
+BATCHSIZE  = 20
+QAM        = 4
+NUM_EPOCHS = 70
+#
+LAST_LIST   = 250
+CONJ_ACTIVE = True
+#If use x or x_mse
+GROUND_TRUTH_SOFT = False # fts
+NOISE = True
+#NN parameters
+INPUT_SIZE  = 48
+HIDDEN_SIZE = 72 
+
+#Optimizer
+LEARNING_RATE = .001
+EPSILON = .01
 
 #Calculate dimension withs this tool 
 #https://thanos.charisoudis.gr/blog/a-simple-conv2d-dimensions-calculator-logger
@@ -110,7 +124,7 @@ class Decoder(nn.Module):
 class VariationalAutoencoder(pl.LightningModule,Rx_loader):
     def __init__(self, latent_dims):
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE) #Rx_loader constructor
+        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete") #Rx_loader constructor
         self.encoder = VariationalEncoder(latent_dims)
         self.decoder = Decoder(latent_dims)
 
