@@ -44,17 +44,17 @@ class RealImag(pl.LightningModule,Rx_loader):
         self.real_net = nn.Sequential(
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, hidden_size*int(2),bias=True),
+            nn.Linear(hidden_size, hidden_size*int(1.5),bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size*int(2), input_size,bias=True),
+            nn.Linear(hidden_size*int(1.5), input_size,bias=True),
             nn.Hardtanh()
         ).double()
         self.imag_net = nn.Sequential(
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, hidden_size*int(2),bias=True),
+            nn.Linear(hidden_size, hidden_size*int(1.5),bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size*int(2), input_size,bias=True),
+            nn.Linear(hidden_size*int(1.5), input_size,bias=True),
             nn.Hardtanh()
         ).double()
         
@@ -190,13 +190,13 @@ class RealImag(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
                 #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/Real_imag/lightning_logs/version_6/checkpoints/epoch=99-step=60000.ckpt')
     Cn = RealImag(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"AnglePhaseNet",get_time_string())
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"RealImag",get_time_string())
     Cn.SNR_BER_TEST(trainer,formating)
     
 

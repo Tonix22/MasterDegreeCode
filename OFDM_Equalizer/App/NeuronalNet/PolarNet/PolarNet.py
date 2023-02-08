@@ -20,7 +20,7 @@ from utils import vector_to_pandas, get_time_string
 
 #Hyperparameters
 BATCHSIZE  = 20
-QAM        = 16
+QAM        = 4
 NUM_EPOCHS = 70
 #
 LAST_LIST   = 250
@@ -36,7 +36,7 @@ HIDDEN_SIZE = 72
 LEARNING_RATE = .001
 EPSILON = .01
 
-class AngleMagnitud(pl.LightningModule,Rx_loader):
+class PolarNet(pl.LightningModule,Rx_loader):
     def __init__(self, input_size, hidden_size):
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
@@ -197,9 +197,9 @@ class AngleMagnitud(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/MagNet/lightning_logs/version_211/checkpoints/epoch=70-step=85200.ckpt')
-    Cn = AngleMagnitud(INPUT_SIZE,HIDDEN_SIZE)
+    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/MagNet/lightning_logs/version_211/checkpoints/epoch=70-step=85200.ckpt')
+    Cn = PolarNet(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
     #name of output log file 

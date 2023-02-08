@@ -21,7 +21,7 @@ from utils import vector_to_pandas, get_time_string
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 4
-NUM_EPOCHS = 20
+NUM_EPOCHS = 80
 #NN parameters
 INPUT_SIZE  = 48
 HIDDEN_SIZE = 72 #48*1.5
@@ -30,14 +30,12 @@ LEARNING_RATE = .001
 EPSILON = .01
 
 
-
-class AngleNet(pl.LightningModule,Rx_loader):
+class PhaseNet(pl.LightningModule,Rx_loader):
     def __init__(self, input_size, hidden_size):
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
         
         self.angle_net = nn.Sequential(
-            nn.Hardtanh(),
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
             nn.Linear(hidden_size, hidden_size*int(1.5),bias=True),
@@ -61,19 +59,19 @@ class AngleNet(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         #Multiply X by the channel
-        Y     = self.Get_Y(chann,x,conj=True)
+        Y     = self.Get_Y(chann,x,conj=True,noise_activ=False)
         
         #normalize angle
-        src_ang = Y.angle()/torch.pi
+        src_ang = (torch.angle(Y) + np.pi) / (2 * np.pi)
         #Normalize target 
-        tgt_ang = x.angle()/torch.pi
+        tgt_ang = (torch.angle(x) + np.pi) / (2 * np.pi)
         
         #model eval
         output_ang = self(src_ang)
         #loss func
         loss  = self.loss_f(output_ang,tgt_ang)
         
-        self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
+        #self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
@@ -84,12 +82,12 @@ class AngleNet(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         #Multiply X by the channel
-        Y     = self.Get_Y(chann,x,conj=True)
+        Y     = self.Get_Y(chann,x,conj=True,noise_activ=False)
         
         #normalize angle
-        src_ang = Y.angle()/torch.pi
+        src_ang = (torch.angle(Y) + np.pi) / (2 * np.pi)
         #Normalize target 
-        tgt_ang = x.angle()/torch.pi
+        tgt_ang = (torch.angle(x) + np.pi) / (2 * np.pi)
         
         #model eval
         output_ang = self(src_ang)
@@ -109,13 +107,12 @@ class AngleNet(pl.LightningModule,Rx_loader):
             chann, x = batch
             chann    = chann.permute(0,3,1,2)
             Y        = self.Get_Y(chann,x,conj=True)
-            
             #normalize angle
-            src_ang = Y.angle()/torch.pi
-            
+            src_ang = (torch.angle(Y) + np.pi) / (2 * np.pi)
             output_ang = self(src_ang)
+            output_ang = output_ang*(2 * np.pi)-np.pi
             #de normalize
-            output_ang  = (src_ang*torch.pi).cpu().to(torch.float32)
+            output_ang  = (output_ang).cpu().to(torch.float32)
             
             #torch polar polar(abs: Tensor, angle: Tensor)
             x_hat    = torch.polar(torch.ones(output_ang.shape),output_ang)
@@ -134,13 +131,13 @@ class AngleNet(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/AngleNet/lightning_logs/version_0/checkpoints/epoch=19-step=24000.ckpt')
-    Cn = AngleNet(INPUT_SIZE,HIDDEN_SIZE)
+    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
+                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PhaseNet/lightning_logs/version_5/checkpoints/epoch=79-step=96000.ckpt')
+    Cn = PhaseNet(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"AngleNet",get_time_string())
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"PhaseNet",get_time_string())
     Cn.SNR_BER_TEST(trainer,formating)
     
 
