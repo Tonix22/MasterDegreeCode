@@ -15,32 +15,27 @@ sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
 from utils import vector_to_pandas, get_time_string
 
-
 #Hyperparameters
 BATCHSIZE  = 10
-NUM_EPOCHS = 45
+NUM_EPOCHS = 37
 QAM        = 4
 
-class AutoencoderNN(pl.LightningModule,Rx_loader):
-    
-    def __init__(self, encoded_space_dim):
-        pl.LightningModule.__init__(self)
-        super(AutoencoderNN,self).__init__()
-        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete") #Rx_loader constructor
-        #self.loss_f = torch.nn.MSELoss()
-        self.loss_f = torch.nn.HuberLoss()
+class AutoEncoder(nn.Module):
+    def __init__(self,encoded_space_dim):
+        super(AutoEncoder, self).__init__()
         #Networks
         self.enconder = nn.Sequential(
-            nn.Conv2d(2, 4, 3, stride=1, padding=1), #(4, 48, 48)
+            nn.Conv2d(1, 4, 3, stride=1, padding=1), #(4, 48, 48)
             nn.MaxPool2d(4,stride=1),#(4, 45, 45)
-            nn.Hardtanh(),
+            nn.BatchNorm2d(4),
+            nn.Tanh(),
             nn.Conv2d(4, 8, 3, stride=2, padding=1),#(8, 23, 23)
-            nn.Hardtanh(),
+            nn.Tanh(),
             nn.MaxPool2d(4,stride=1),#(8, 20, 20)
             nn.Conv2d(8, 16, 3, stride=2, padding=1),#(16, 10, 10)
-            nn.Hardtanh(),
+            nn.Tanh(),
             nn.MaxPool2d(4,stride=1),
-            nn.Hardtanh(),
+            nn.Tanh(),
             nn.Conv2d(16, 32, 3, stride=2, padding=0), #(32, 3, 3)
             nn.Flatten(start_dim=1),
             nn.Linear(288, 128),
@@ -59,15 +54,31 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
             nn.ConvTranspose2d(12, 8, 4, stride=2, padding=0),
             nn.Hardtanh(),
             nn.ConvTranspose2d(8, 6, 3, stride=1, padding=0),
+            nn.BatchNorm2d(6),
             nn.Hardtanh(),
             nn.ConvTranspose2d(6, 4, 3, stride=1, padding=0),
-            nn.ConvTranspose2d(4, 2, 3, stride=1, padding=0)
+            nn.ConvTranspose2d(4, 1, 3, stride=1, padding=0)
         ).double()
         
-    def forward(self, x): 
+    def forward(self, x):
         z   = self.enconder(x)
         out = self.decoder(z)
-        return z,out
+        return out
+
+
+class AutoencoderNN(pl.LightningModule,Rx_loader):
+    
+    def __init__(self, encoded_space_dim):
+        pl.LightningModule.__init__(self)
+        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete") #Rx_loader constructor
+        #self.loss_f = torch.nn.MSELoss()
+        self.loss_f    = torch.nn.HuberLoss()
+        self.abs_net   = AutoEncoder(encoded_space_dim)
+        self.angle_net = AutoEncoder(encoded_space_dim)
+
+        
+    def forward(self, abs,angle):
+        return self.abs_net(abs),self.angle_net(angle)
     
     def configure_optimizers(self): 
         return torch.optim.Adam(self.parameters(),lr=0.0005,weight_decay=1e-5,eps=.005)
@@ -80,14 +91,12 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
         # ------------ Source Data ------------
         # Normalize the first channel by dividing by max_abs
         chann      = torch.complex(chann[:, 0, :, :],chann[:, 1, :, :])
-        abs_factor = torch.max(torch.abs(chann), dim=1, keepdim=True)[0]
-        chann      = chann/abs_factor
-        chann_abs  = torch.abs(chann)
-        
+        #normalize abs
+        chann      = chann*673.631 # factor to get inverse with abs max of 1
+        chann_abs  = torch.abs(chann).unsqueeze(dim=1)
         #normalize angle
         chann_ang  = (torch.angle(chann) + torch.pi) / (2 * torch.pi)
-        
-        chann_src  = torch.stack((chann_abs, chann_ang), dim=1)
+        chann_ang  = chann_ang.unsqueeze(dim=1)
         
         # ------------ Target Data ------------
         chann_inv  = torch.linalg.inv(chann)
@@ -95,7 +104,9 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
         chan_tgt   = torch.stack((torch.abs(chann_inv), tgt_ang), dim=1)
         
         #auto encoder
-        z,chann_hat = self(chann_src)
+        abs_hat,angle_hat   = self(chann_abs,chann_ang)
+        chann_hat = torch.cat((abs_hat, angle_hat), dim=1)
+        #loss eval
         loss        = self.loss_f(chann_hat,chan_tgt)
         
         self.log("train_loss", loss) #tensorboard logs
@@ -109,13 +120,12 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
         # ------------ Source Data ------------
         # Normalize the first channel by dividing by max_abs
         chann      = torch.complex(chann[:, 0, :, :],chann[:, 1, :, :])
-        abs_factor = torch.max(torch.abs(chann), dim=1, keepdim=True)[0]
-        chann      = chann/abs_factor
-        chann_abs  = torch.abs(chann)
-        
+        #normalize abs
+        chann      = chann*673.631 # factor to get inverse with abs max of 1
+        chann_abs  = torch.abs(chann).unsqueeze(dim=1)
         #normalize angle
         chann_ang  = (torch.angle(chann) + torch.pi) / (2 * torch.pi)
-        chann_src  = torch.stack((chann_abs, chann_ang), dim=1)
+        chann_ang  = chann_ang.unsqueeze(dim=1)
         
         # ------------ Target Data ------------
         chann_inv  = torch.linalg.inv(chann)
@@ -123,7 +133,9 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
         chan_tgt   = torch.stack((torch.abs(chann_inv), tgt_ang), dim=1)
         
         #auto encoder
-        z,chann_hat = self(chann_src)
+        abs_hat,angle_hat   = self(chann_abs,chann_ang)
+        chann_hat = torch.cat((abs_hat, angle_hat), dim=1)
+        #loss eval
         loss        = self.loss_f(chann_hat,chan_tgt)
         
         return {'val_loss':loss}
@@ -146,20 +158,19 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
             # ------------ Source Data ------------
             # Normalize the first channel by dividing by max_abs
             chann      = torch.complex(chann[:, 0, :, :],chann[:, 1, :, :])
-            abs_factor = torch.max(torch.abs(chann), dim=1, keepdim=True)[0]
-            chann      = chann/abs_factor
-            chann_abs  = torch.abs(chann)
+            chann      = chann*673.631
+            chann_abs  = torch.abs(chann).unsqueeze(dim=1)
             
             #normalize angle
             chann_ang  = (torch.angle(chann) + torch.pi) / (2 * torch.pi)
-            chann_src  = torch.stack((chann_abs, chann_ang), dim=1)
-            
+            chann_ang  = chann_ang.unsqueeze(dim=1)
             # ------------ Model Eval ------------
-            z,chann_hat = self(chann_src)
+            abs_hat,ang_hat = self(chann_abs,chann_ang)
+            #denormalize
+            abs_hat = abs_hat*673.631
+            ang_hat = (ang_hat*(2 * torch.pi))-torch.pi
             # ------------ Denormalize angle -----------
-            chann_hat[:,0,:,:]   = chann_hat[:,0,:,:]/abs_factor
-            chann_hat[:,1,:,:]   = chann_hat[:,1,:,:]*(2 * torch.pi)-torch.pi
-            chann_hat = torch.polar(chann_hat[:,0,:,:],chann_hat[:,1,:,:])
+            chann_hat = torch.polar(abs_hat.squeeze(),ang_hat.squeeze())
             # ------------ Multiply by inverse ------------
             x_hat = torch.einsum('bij,bi->bj', chann_hat, Y)
             
@@ -177,8 +188,8 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
         return self.test_loader
     
 if __name__ == '__main__':
-    trainer = Trainer(accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/version_5/checkpoints/epoch=44-step=54000.ckpt')
+    trainer = Trainer(accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
+                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/version_12/checkpoints/epoch=36-step=44400.ckpt')
     model   = AutoencoderNN(96)
     #checkpoint_file = torch.load('/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/Autoencoderckpt/checkpoints/epoch=999-step=1200000.ckpt')
     #print(checkpoint_file.keys())
