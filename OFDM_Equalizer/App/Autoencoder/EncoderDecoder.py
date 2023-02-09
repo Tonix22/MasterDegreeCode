@@ -15,16 +15,17 @@ from Recieved import RX,Rx_loader
 
 #Hyperparameters
 BATCHSIZE  = 10
-NUM_EPOCHS = 1000
-
+NUM_EPOCHS = 100
+QAM        = 4
 
 class AutoencoderNN(pl.LightningModule,Rx_loader):
     
     def __init__(self, encoded_space_dim):
         pl.LightningModule.__init__(self)
         super(AutoencoderNN,self).__init__()
-        Rx_loader.__init__(self,BATCHSIZE) #Rx_loader constructor
-        self.loss_f = torch.nn.MSELoss()
+        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete") #Rx_loader constructor
+        #self.loss_f = torch.nn.MSELoss()
+        self.loss_f = torch.nn.HuberLoss()
         #Networks
         self.enconder = nn.Sequential(
             nn.Conv2d(2, 4, 3, stride=1, padding=1), #(4, 48, 48)
@@ -40,9 +41,8 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
             nn.Conv2d(16, 32, 3, stride=2, padding=0), #(32, 3, 3)
             nn.Flatten(start_dim=1),
             nn.Linear(288, 128),
-            nn.Hardtanh(),
             nn.Linear(128, encoded_space_dim)
-        )
+        ).double()
         self.decoder = nn.Sequential(
             nn.Linear(encoded_space_dim, 128),
             nn.Hardtanh(),
@@ -58,9 +58,8 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
             nn.ConvTranspose2d(8, 6, 3, stride=1, padding=0),
             nn.Hardtanh(),
             nn.ConvTranspose2d(6, 4, 3, stride=1, padding=0),
-            nn.Hardtanh(),
             nn.ConvTranspose2d(4, 2, 3, stride=1, padding=0)
-        )
+        ).double()
         
     def forward(self, x): 
         z   = self.enconder(x)
@@ -75,9 +74,26 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
         chann, x = batch
         #chann preparation
         chann = chann.permute(0,3,1,2)
+        # ------------ Source Data ------------
+        # Normalize the first channel by dividing by max_abs
+        chann      = torch.complex(chann[:, 0, :, :],chann[:, 1, :, :])
+        abs_factor = torch.max(torch.abs(chann), dim=1, keepdim=True)[0]
+        chann      = chann/abs_factor
+        chann_abs  = torch.abs(chann)
+        
+        #normalize angle
+        chann_ang  = (torch.angle(chann) + torch.pi) / (2 * torch.pi)
+        
+        chann_src  = torch.stack((chann_abs, chann_ang), dim=1)
+        
+        # ------------ Target Data ------------
+        chann_inv  = torch.linalg.inv(chann)
+        tgt_ang    = (torch.angle(chann_inv)+ torch.pi)/ (2 * torch.pi)
+        chan_tgt   = torch.stack((torch.abs(chann_inv), tgt_ang), dim=1)
+        
         #auto encoder
-        z,chann_hat = self(chann) #model eval
-        loss        = self.loss_f(chann,chann_hat)
+        z,chann_hat = self(chann_src)
+        loss        = self.loss_f(chann_hat,chan_tgt)
         
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
@@ -87,9 +103,26 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
         chann, x = batch
         #chann preparation
         chann = chann.permute(0,3,1,2)
+        # ------------ Source Data ------------
+        # Normalize the first channel by dividing by max_abs
+        chann      = torch.complex(chann[:, 0, :, :],chann[:, 1, :, :])
+        abs_factor = torch.max(torch.abs(chann), dim=1, keepdim=True)[0]
+        chann      = chann/abs_factor
+        chann_abs  = torch.abs(chann)
+        
+        #normalize angle
+        chann_ang  = (torch.angle(chann) + torch.pi) / (2 * torch.pi)
+        chann_src  = torch.stack((chann_abs, chann_ang), dim=1)
+        
+        # ------------ Target Data ------------
+        chann_inv  = torch.linalg.inv(chann)
+        tgt_ang    = (torch.angle(chann_inv)+ torch.pi)/ (2 * torch.pi)
+        chan_tgt   = torch.stack((torch.abs(chann_inv), tgt_ang), dim=1)
+        
         #auto encoder
-        z,chann_hat = self(chann)
-        loss        = self.loss_f(chann,chann_hat)
+        z,chann_hat = self(chann_src)
+        loss        = self.loss_f(chann_hat,chan_tgt)
+        
         return {'val_loss':loss}
     
     def validation_epoch_end(self, outputs):
@@ -107,12 +140,12 @@ class AutoencoderNN(pl.LightningModule,Rx_loader):
         return self.test_loader
     
 if __name__ == '__main__':
-    trainer = Trainer(callbacks=[TQDMProgressBar(refresh_rate=100)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
     model   = AutoencoderNN(96)
-    checkpoint_file = torch.load('/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/Autoencoderckpt/checkpoints/epoch=999-step=1200000.ckpt')
-    print(checkpoint_file.keys())
-    model.load_state_dict(checkpoint_file['state_dict'])
+    #checkpoint_file = torch.load('/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/Autoencoderckpt/checkpoints/epoch=999-step=1200000.ckpt')
+    #print(checkpoint_file.keys())
+    #model.load_state_dict(checkpoint_file['state_dict'])
     #trainer.fit(model,ckpt_path='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/lightning_logs/version_1/checkpoints/epoch=771-step=926400.ckpt')
-    #trainer.fit(model)
+    trainer.fit(model)
     
     
