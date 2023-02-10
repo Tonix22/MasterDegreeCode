@@ -22,7 +22,7 @@ from GridCode import GridCode
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 16
-NUM_EPOCHS = 30
+NUM_EPOCHS = 150
 SNR        = 20
 #
 LAST_LIST   = 250
@@ -251,7 +251,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         
-        if(batch_idx < 10):
+        if(batch_idx < 400):
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             # Chann Formating
@@ -295,7 +295,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
 if __name__ == '__main__':
     
     trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_24/checkpoints/epoch=29-step=36000.ckpt')
+                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_33/checkpoints/epoch=12-step=15600.ckpt')
     tf = GridTransformer(
     embedding_size,
     src_pad_idx,
@@ -306,12 +306,12 @@ if __name__ == '__main__':
     dropout,
     max_len)
     
-    #tf.SNR_db = SNR
+    tf.SNR_db = SNR
     trainer.fit(tf)
     
     #name of output log file 
-    #formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
-    #tf.SNR_BER_TEST(trainer,formating)
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
+    tf.SNR_BER_TEST(trainer,formating)
     
 
     
