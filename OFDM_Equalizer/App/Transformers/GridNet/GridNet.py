@@ -17,6 +17,7 @@ sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
 from utils import vector_to_pandas, get_time_string
+from GridCode import GridCode
 
 #Hyperparameters
 BATCHSIZE  = 10
@@ -35,12 +36,12 @@ LEARNING_RATE = .001
 EPSILON = .01
 
 # Model hyperparameters
-GRID_STEP = 1/8
+GRID_STEP = 1/7
 embedding_size = 512
-num_heads      = 8
+num_heads      = 16
 num_encoder_layers = 6
 num_decoder_layers = 6
-dropout = 0.10
+dropout = 0.05
 max_len = 50
 forward_expansion = 2048 # default 
 src_pad_idx       = 1
@@ -60,29 +61,19 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
+        # ------------ Grid config ------------
+        self.grid = GridCode(GRID_STEP)
+        # Normalize Ground Truth constelation values
+        self.data.Qsym.GroundTruth  = self.data.Qsym.GroundTruth/np.max(np.abs(self.data.Qsym.GroundTruth))
+        # Center Ground truth to grid
+        self.data.Qsym.GroundTruth  = self.grid.Decode(self.grid.Encode(self.data.Qsym.GroundTruth)).numpy()
+        # Center Constelation symbols to grid
+        self.data.Qsym.QAM_norm_arr = self.grid.Decode(self.grid.Encode(self.data.Qsym.QAM_norm_arr)).numpy()
+        
         
         # ------------ Telecom Stuff ------------
         self.snr_db_values = [(80,40), (130,30), (170,20), (200,10),(LAST_LIST,5)]
-        
-        # ------------ Grid config ------------
-        self.step = GRID_STEP
-        
-        #       ------------ Encode ------------
-        
-        # Define bins for the real and imaginary parts of the data
-        self.binsx = torch.arange(-1, 1 + self.step, self.step)
-        self.binsy = torch.arange(-1, 1 + self.step, self.step)
-        # Create a 2D bin index matrix for encoding
-        self.binxy = torch.arange(start=4, end=4 + (len(self.binsx) - 1) * (len(self.binsy) - 1)).view(len(self.binsx) - 1, len(self.binsy) - 1)
-        # Create empty tensors for storing the indices of the bins for the real and imaginary parts of the data
-        self.x_indices = torch.zeros((BATCHSIZE, self.data.sym_no), dtype=torch.long)
-        self.y_indices = torch.zeros((BATCHSIZE, self.data.sym_no), dtype=torch.long)
-        
-        #       ------------ Decode ------------
-        # Create empty tensors for storing the decoded values for the real and imaginary parts of the data
-        self.real_decoded = torch.zeros(self.x_indices.shape,dtype=torch.float64)
-        self.imag_decoded = torch.zeros(self.y_indices.shape,dtype=torch.float64)
-        
+                
         # ------------ Alphabet ------------
         
         # sos 2 eos 3
@@ -96,7 +87,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         #soft_ground truth
         self.ground_truth = GROUND_TRUTH_SOFT
 
-        self.vocab_size = self.binxy.max()
+        self.vocab_size = self.grid.binxy.max()
         #Embedding section
         #src embedding
         self.src_word_embedding     = nn.Embedding(self.vocab_size , embedding_size)
@@ -116,14 +107,13 @@ class GridTransformer(pl.LightningModule,Rx_loader):
             activation="gelu",
             norm_first=True
         )
+        
         self.fc_out      = nn.Linear(embedding_size, self.vocab_size)
         self.dropout     = nn.Dropout(dropout)
         self.src_pad_idx = src_pad_idx
-        
 
     def make_src_mask(self, src):
         src_mask = src.transpose(0, 1) == self.src_pad_idx
-        # (N, src_len)
         return src_mask.to(self.device)
 
     def forward(self,src,trg):
@@ -162,6 +152,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
             tgt_mask=trg_mask,
         )
         out = self.fc_out(out)
+        
         return out
     
     def configure_optimizers(self): 
@@ -172,46 +163,16 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         # Get the absolute maximum value of the data along the sequence dimension (dim=1)
         # Keep the first dimension with keepdim=True for broadcasting purposes
         src_abs_factor = torch.max(torch.abs(data),dim=1, keepdim=True)[0]
-
         # Normalize the data by dividing it with the maximum absolute value
         data = data/src_abs_factor
-        
-        # Loop over the bins for the real and imaginary parts
-        for i in range(len(self.binsx) - 1):
-            # Find the indices of the data that lie within the current bin for the real part
-            self.x_indices[(self.binsx[i] <= data.real) & (data.real < self.binsx[i + 1])] = i
-            # Same for imaginary part
-            self.y_indices[(self.binsy[i] <= data.imag) & (data.imag < self.binsy[i + 1])] = i
-        
-
-        # Encode the data by selecting the corresponding bin indices from the bin index matrix
-        encoded = self.binxy[self.y_indices, self.x_indices]
+        # Encode data    
+        encoded = self.grid.Encode(data)
         encoded = torch.cat((self.sos,encoded,self.eos),dim=1)
-        # Clear tensor for next encoding
-        self.y_indices.zero_()
-        self.x_indices.zero_()
         
         return encoded.to(self.device)
     
-    def grid_decode(self,encoded):
-        # Loop over the bins for the real and imaginary parts
-        for i in range(len(self.binsx) - 1):
-            for j in range(len(self.binsy) - 1):
-                # Find the indices of the encoded values that correspond to the current bin
-                indices = (encoded == self.binxy[j, i])
-                # Fill the decoded values for the real part
-                self.real_decoded[indices] = torch.tensor(self.binsx[i] + self.step/2).to(torch.float64)
-                # Fill the decoded values for the imaginary part
-                self.imag_decoded[indices] = torch.tensor(self.binsy[j] + self.step/2).to(torch.float64)
-        
-        # Create a tensor for the decoded data
-        data_decoded = torch.complex(self.real_decoded, self.imag_decoded)
-
-        # Clear tensor for next decoding
-        self.real_decoded.zero_()
-        self.imag_decoded.zero_()
-        
-        return data_decoded
+    def grid_decode(self,encoded):      
+        return self.grid.Decode(encoded)
         
       
     def SNR_select(self):
@@ -314,8 +275,6 @@ class GridTransformer(pl.LightningModule,Rx_loader):
                 x_hat[batch_i] = torch.Tensor(outputs[1:]).to(torch.int64).to(self.device)
         
             #Get target tokens
-            
-            #tgt_tokens[1:-1,batch] - x_hat[batch]
             #degrid bits
             
             x_hat = self.grid_decode(x_hat)
@@ -349,7 +308,6 @@ if __name__ == '__main__':
     
     #tf.SNR_db = SNR
     trainer.fit(tf)
-    
     
     #name of output log file 
     #formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())

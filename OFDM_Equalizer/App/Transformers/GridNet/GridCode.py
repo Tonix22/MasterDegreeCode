@@ -13,7 +13,9 @@ from Recieved import RX
 class GridCode():
     def __init__(self,step):
         # Define the step size for binning
-        self.step = step
+        self.step          = step
+        self.indices_shape = None
+        self.decoded_shape = None
 
         # Define bins for the real and imaginary parts of the data
         self.binsx = torch.arange(-.85, .85 + self.step, self.step)
@@ -23,8 +25,14 @@ class GridCode():
 
     def Encode(self,data):
         # Create empty tensors for storing the indices of the bins for the real and imaginary parts of the data
-        self.x_indices = torch.zeros(data.shape, dtype=torch.long)
-        self.y_indices = torch.zeros(data.shape, dtype=torch.long)
+        if data.shape != self.indices_shape:
+            self.x_indices  = torch.zeros(data.shape, dtype=torch.long)
+            self.y_indices  = torch.zeros(data.shape, dtype=torch.long)
+            self.indices_shape = data.shape
+        else:
+            self.x_indices.zero_()
+            self.y_indices.zero_()
+            
         if type(data) == np.ndarray:
             data = torch.from_numpy(data)
             
@@ -41,8 +49,15 @@ class GridCode():
 
     def Decode(self,encoded):
         # Create empty tensors for storing the decoded values for the real and imaginary parts of the data
-        self.real_decoded = torch.zeros((encoded.shape),dtype=torch.float64)
-        self.imag_decoded = torch.zeros((encoded.shape),dtype=torch.float64)
+        
+        if encoded.shape!= self.decoded_shape:
+            self.real_decoded  = torch.zeros((encoded.shape),dtype=torch.float64)
+            self.imag_decoded  = torch.zeros((encoded.shape),dtype=torch.float64)
+            self.decoded_shape = encoded.shape
+        else:
+            self.real_decoded.zero_()
+            self.imag_decoded.zero_()
+        
         if type(encoded) == np.ndarray:
             encoded = torch.from_numpy(encoded)
         # Loop over the bins for the real and imaginary parts
@@ -56,10 +71,7 @@ class GridCode():
                 self.imag_decoded[indices] = self.binsy[j] + self.step/2
 
         # Create a tensor for the decoded data
-        data_decoded = torch.complex(self.real_decoded, self.imag_decoded)
-        self.real_decoded.zero_()
-        self.imag_decoded.zero_()
-        
+        data_decoded = torch.complex(self.real_decoded, self.imag_decoded)        
         return data_decoded
     
     def plot_scatter_values(self,ax,vect,title):
@@ -87,6 +99,7 @@ class GridCode():
         ax.axvline(x=0, color='k')
         ax.set_title(title)
 
+"""
 coding = GridCode(1/7)
 
 fig =  plt.subplots()
@@ -103,6 +116,7 @@ values    = values/np.max(np.abs(values))
 
 coding.plot_scatter_values(ax1,rx.Qsym.GroundTruth[:10,10],"Truth")
 coding.plot_scatter_values(ax2,values[:10],"Centered")
+"""
 
 #rx.Qsym.QAM_norm_arr = coding.Decode(coding.Encode(rx.Qsym.QAM_norm_arr )).numpy()
 #coding.plot_scatter_values(ax1,rx.Qsym.QAM_norm_arr,"QAM")
@@ -116,4 +130,4 @@ coding.plot_scatter_values(ax2,values[:10],"Centered")
 #plot_scatter_values(ax1,data[0][:10].numpy(),"Original",coding.binsx,coding.binsy)
 #plot_scatter_values(ax2,data_decoded[0][:10].numpy(),"Decoded",coding.binsx,coding.binsy)
 
-plt.show()
+#plt.show()
