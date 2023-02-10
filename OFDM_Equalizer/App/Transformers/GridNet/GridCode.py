@@ -18,8 +18,8 @@ class GridCode():
         self.decoded_shape = None
 
         # Define bins for the real and imaginary parts of the data
-        self.binsx = torch.arange(-.85, .85 + self.step, self.step)
-        self.binsy = torch.arange(-.85, .85 + self.step, self.step)
+        self.binsx = torch.arange(-.85, .85 + self.step, self.step,dtype=torch.float64)
+        self.binsy = torch.arange(-.85, .85 + self.step, self.step,dtype=torch.float64)
         # Create a 2D bin index matrix for encoding
         self.binxy = torch.arange(start=4, end=4 + (len(self.binsx) - 1) * (len(self.binsy) - 1)).view(len(self.binsx) - 1, len(self.binsy) - 1)
 
