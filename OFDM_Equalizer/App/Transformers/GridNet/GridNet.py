@@ -22,18 +22,17 @@ from GridCode import GridCode
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 16
-NUM_EPOCHS = 150
-SNR        = 20
+NUM_EPOCHS = 50 #50,100,150
+SNR        = 25
 #
 LAST_LIST   = 250
-CONJ_ACTIVE = True
+CONJ_ACTIVE = False
 #If use x or x_mse
 GROUND_TRUTH_SOFT = False # fts
 NOISE = True
 
 #Optimizer
-LEARNING_RATE = .001
-EPSILON = .01
+LEARNING_RATE = .0001
 
 # Model hyperparameters
 GRID_STEP = 1/7
@@ -156,7 +155,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return out
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.0007,eps=.007,weight_decay=1e-5)
+        return torch.optim.Adam(self.parameters(),lr=.0008,weight_decay=1e-5)
     
     #This function already does normalization 
     def grid_token(self,data):
@@ -184,23 +183,23 @@ class GridTransformer(pl.LightningModule,Rx_loader):
                     break
         else:
             self.SNR_db = (self.SNR_db+1)%35+5
-      
-    def training_step(self, batch, batch_idx):
-        #self.SNR_db = ((40-self.current_epoch*10)%41)+5
-        #self.SNR_select()
+    
+    def common_step(self,batch,predict = False):
+        if(predict == False):
+            i = self.current_epoch
+            self.SNR_db = 45 - 5 * (i % 5)
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         # Chann Formating
         chann = chann.permute(0,3,1,2) 
         # Prepare GridTransformer
-        #TODO test with conj True and False
-        Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=NOISE) 
+        Y        = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=NOISE)
+        forced_Y = self.ZERO_X(chann,Y)
+        
         # Transform src values to grid tokens 
-        src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
+        src_tokens = self.grid_token(forced_Y).permute(1,0) # [length,batch]
         
         #Get target tokens
-        if(self.ground_truth == True):
-            x = self.MSE_X(chann,Y)
         tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
         
         #model eval transformer
@@ -211,36 +210,16 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         target = tgt_tokens[1:].reshape(-1)
         loss   = self.loss_f(output,target)
         
+        return loss
+      
+    def training_step(self, batch, batch_idx):
+        loss = self.common_step(batch)
         self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
-        #self.SNR_db = ((40-self.current_epoch*10)%41)+5
-        #self.SNR_select()
-        # training_step defines the train loop. It is independent of forward
-        chann, x = batch
-        # Chann Formating
-        chann = chann.permute(0,3,1,2) 
-        # Prepare GridTransformer
-        #TODO test with conj True and False
-        Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=NOISE) 
-        # Transform src values to grid tokens 
-        src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
-        
-        #Get target tokens
-        if(self.ground_truth == True):
-            x = self.MSE_X(chann,Y)
-        tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
-        
-        #model eval transformer
-        output = self(src_tokens,tgt_tokens[:-1, :])
-        output = output.reshape(-1, output.shape[2]) # then we merge first two dim
-        
-        #loss func
-        target = tgt_tokens[1:].reshape(-1)
-        loss   = self.loss_f(output,target)
-        
+        loss = self.common_step(batch)
         self.log('val_loss', loss) #tensorboard logs
         return {'val_loss':loss}
     
@@ -251,15 +230,16 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         
-        if(batch_idx < 400):
+        if(batch_idx < 20):
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             # Chann Formating
             chann = chann.permute(0,3,1,2) 
             # Prepare GridTransformer
-            Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=True) 
+            Y        = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=True)
+            forced_Y = self.ZERO_X(chann,Y)
             # Transform src values to grid tokens 
-            src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
+            src_tokens = self.grid_token(forced_Y).permute(1,0) # [length,batch]
             tgt_tokens = self.grid_token(x)
                         
             x_hat = torch.zeros(x.shape,dtype=torch.int64).to(self.device)
@@ -295,7 +275,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
 if __name__ == '__main__':
     
     trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_33/checkpoints/epoch=12-step=15600.ckpt')
+                #resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_3/checkpoints/epoch=38-step=46800.ckpt')
     tf = GridTransformer(
     embedding_size,
     src_pad_idx,
@@ -310,8 +290,8 @@ if __name__ == '__main__':
     trainer.fit(tf)
     
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
-    tf.SNR_BER_TEST(trainer,formating)
+    #formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
+    #tf.SNR_BER_TEST(trainer,formating)
     
 
     
