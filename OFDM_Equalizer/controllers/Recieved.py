@@ -184,4 +184,20 @@ class Rx_loader(object):
             Pn = Ps / (10**(self.SNR_db/10))
             x_lmse[i] = torch.linalg.inv(H_H@H+torch.eye(48).to(self.device)*Pn)@H_H@Y[i]
         return x_lmse
+    
+    def ZERO_X(self,chann,Y):
+        # Extract the diagonal of each matrix in the tensor
+        diagonals = []
+        H = torch.complex(chann[:,0,:, :],chann[:,1,:, :])
+        for i in range(H.shape[0]):
+            matrix = H[i]
+            diagonal = torch.diagonal(matrix)
+            diagonals.append(diagonal)
+
+        # Stack the diagonals into a new tensor
+        diagonal_tensor = torch.stack(diagonals)
+        
+        x_hat = Y/diagonal_tensor #ZERO FORCING equalizer
+        return x_hat
+            
         
