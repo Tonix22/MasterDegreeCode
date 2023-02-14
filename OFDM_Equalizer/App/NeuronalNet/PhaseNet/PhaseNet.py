@@ -21,13 +21,14 @@ from utils import vector_to_pandas, get_time_string
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 4
-NUM_EPOCHS = 80
+NUM_EPOCHS = 21
 #NN parameters
 INPUT_SIZE  = 48
 HIDDEN_SIZE = 72 #48*1.5
 #Optimizer
 LEARNING_RATE = .001
 EPSILON = .01
+CONJ = False
 
 
 class PhaseNet(pl.LightningModule,Rx_loader):
@@ -50,7 +51,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         return self.angle_net(ang)
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.0007,eps=.0007)
+        return torch.optim.Adam(self.parameters(),lr=.0007)
     
     def common_step(self,batch,predict = False):
         if(predict == False):
@@ -60,8 +61,14 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         chann, x = batch
         #chann preparation
         chann = chann.permute(0,3,1,2)
-        #Multiply X by the channel
-        Y     = self.Get_Y(chann,x,conj=True,noise_activ=False)
+        #Multiply X by the channel            
+        if(predict == True):
+            Y     = self.Get_Y(chann,x,conj=CONJ,noise_activ=True)
+        else:
+            Y     = self.Get_Y(chann,x,conj=CONJ,noise_activ=False)
+        
+        if(CONJ == False):
+            Y     = self.ZERO_X(chann,Y)
         
         #normalize angle
         src_ang = (torch.angle(Y) + np.pi) / (2 * np.pi)
@@ -72,6 +79,13 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         output_ang = self(src_ang)
         #loss func
         loss  = self.loss_f(output_ang,tgt_ang)
+        
+        if(predict == True):
+            #torch polar polar(abs: Tensor, angle: Tensor)
+            output_ang = output_ang*(2 * np.pi)-np.pi
+            x_hat    = torch.polar(torch.ones(output_ang.shape).to(torch.float64)*.7,output_ang)
+            self.SNR_calc(x_hat,x)
+        
         return loss
     
     def training_step(self, batch, batch_idx):
@@ -91,22 +105,10 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         return {'val_loss':avg_loss}
     
     def predict_step(self, batch, batch_idx):
-        if(batch_idx < 100):
-            chann, x = batch
-            chann    = chann.permute(0,3,1,2)
-            Y        = self.Get_Y(chann,x,conj=True)
-            #normalize angle
-            src_ang = (torch.angle(Y) + np.pi) / (2 * np.pi)
-            output_ang = self(src_ang)
-            output_ang = output_ang*(2 * np.pi)-np.pi
-            #de normalize
-            output_ang  = (output_ang).cpu().to(torch.float32)
-            
-            #torch polar polar(abs: Tensor, angle: Tensor)
-            x_hat    = torch.polar(torch.ones(output_ang.shape),output_ang)
-            self.SNR_calc(x_hat,x) 
-            
-        return 0 
+        loss = 0
+        if(batch_idx < 200):
+            loss = self.common_step(batch,predict = True)
+        return loss 
     
     def train_dataloader(self):
         return self.train_loader
@@ -120,7 +122,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
 if __name__ == '__main__':
     
     trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PhaseNet/lightning_logs/version_5/checkpoints/epoch=79-step=96000.ckpt')
+                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PhaseNet/lightning_logs/version_8/checkpoints/epoch=20-step=25200.ckpt')
     Cn = PhaseNet(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
