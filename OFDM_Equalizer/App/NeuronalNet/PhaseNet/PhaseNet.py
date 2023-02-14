@@ -50,10 +50,12 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         return self.angle_net(ang)
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.0007,eps=.007)
-        
-    def training_step(self, batch, batch_idx):
-        self.SNR_db = ((40-self.current_epoch*10)%41)+5
+        return torch.optim.Adam(self.parameters(),lr=.0007,eps=.0007)
+    
+    def common_step(self,batch,predict = False):
+        if(predict == False):
+            i = self.current_epoch
+            self.SNR_db = 45 - 5 * (i % 8)
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         #chann preparation
@@ -70,30 +72,16 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         output_ang = self(src_ang)
         #loss func
         loss  = self.loss_f(output_ang,tgt_ang)
-        
+        return loss
+    
+    def training_step(self, batch, batch_idx):
+        loss = self.common_step(batch)
         #self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
-        self.SNR_db = ((40-self.current_epoch*10)%41)+5
-        # training_step defines the train loop. It is independent of forward
-        chann, x = batch
-        #chann preparation
-        chann = chann.permute(0,3,1,2)
-        #Multiply X by the channel
-        Y     = self.Get_Y(chann,x,conj=True,noise_activ=False)
-        
-        #normalize angle
-        src_ang = (torch.angle(Y) + np.pi) / (2 * np.pi)
-        #Normalize target 
-        tgt_ang = (torch.angle(x) + np.pi) / (2 * np.pi)
-        
-        #model eval
-        output_ang = self(src_ang)
-        #loss func
-        loss  = self.loss_f(output_ang,tgt_ang)
-        
+        loss = self.common_step(batch)
         self.log('val_loss', loss) #tensorboard logs
         return {'val_loss':loss}
     
