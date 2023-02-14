@@ -139,7 +139,7 @@ class ComplexAE(pl.LightningModule,Rx_loader):
         plt.savefig("./Channels_phase.png")
     
     def predict_step(self, batch, batch_idx):
-        if(batch_idx < 400):
+        if(batch_idx < 100):
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             #chann preparation
@@ -170,7 +170,7 @@ class ComplexAE(pl.LightningModule,Rx_loader):
                 # ------------ Multiply by inverse ------------
                 x_hat = torch.einsum('bij,bi->bj', chann_hat, Y)
             else:
-                z = z*max_magnitude
+                z = z*torch.squeeze(max_magnitude)
                 x_hat = Y/z #ZERO FORCING equalizer
                 #x_hat  = self.MSE_X(copy_chann,Y)
             
