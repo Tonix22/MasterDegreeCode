@@ -21,8 +21,8 @@ from utils import get_time_string
 
 #Hyperparameters
 BATCHSIZE  = 100
-QAM        = 4
-ESTIM      = "LMSE"
+QAM        = 16
+ESTIM      = "ZERO"
 
 class Golden(pl.LightningModule,Rx_loader):
     def __init__(self,mode="MSE"):
@@ -32,9 +32,10 @@ class Golden(pl.LightningModule,Rx_loader):
         
         if(self.mode == "MSE"):
             self.estimator = self.MSE_X
-            
         elif(self.mode == "LMSE"):
             self.estimator = self.LMSE_X
+        elif(self.mode == "ZERO"):
+            self.estimator = self.ZERO_X
         
     def forward(self, x):        
         return x
@@ -50,7 +51,6 @@ class Golden(pl.LightningModule,Rx_loader):
         self.SNR_calc(x_hat,x)
         return 0
             
-    
     def predict_dataloader(self):
         return self.test_loader
         
