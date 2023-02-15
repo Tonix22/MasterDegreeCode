@@ -23,7 +23,7 @@ from PlotChannel import plot_channel
 
 #Hyperparameters
 BATCHSIZE  = 10
-NUM_EPOCHS = 100
+NUM_EPOCHS = 200
 QAM        = 16
 TARGET     = "normal"
 
