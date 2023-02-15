@@ -259,6 +259,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
             #degrid bits
             
             x_hat = self.grid_decode(x_hat)
+            x_hat = self.ZERO_X(chann,x_hat) # zero forcing after clean up
             x     = self.grid_decode(tgt_tokens[:,1:-1])
             self.SNR_calc(x_hat,x,norm=True) 
             
