@@ -17,18 +17,20 @@ sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
 from utils import vector_to_pandas, get_time_string
+from Scatter_plot_results import ComparePlot
+import torch.optim.lr_scheduler as lr_scheduler
 
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 4
-NUM_EPOCHS = 21
+NUM_EPOCHS = 2
 #NN parameters
 INPUT_SIZE  = 48
-HIDDEN_SIZE = 72 #48*1.5
+HIDDEN_SIZE = 240 #48*1.5
 #Optimizer
 LEARNING_RATE = .001
 EPSILON = .01
-CONJ = False
+CONJ = True
 
 
 class PhaseNet(pl.LightningModule,Rx_loader):
@@ -39,52 +41,102 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         self.angle_net = nn.Sequential(
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size, hidden_size*int(1.5),bias=True),
+            nn.Linear(hidden_size, hidden_size*int(3),bias=True),
+            nn.Linear(hidden_size*int(3), hidden_size,bias=True),
             nn.Hardtanh(),
-            nn.Linear(hidden_size*int(1.5), input_size,bias=True),
-            nn.Hardtanh(),
+            nn.Linear(hidden_size, input_size,bias=True)
         ).double()    
         self.loss_f = nn.MSELoss()
+        #self.loss_f = self.distanceLoss
+        
+    def distanceLoss(self,real_target,imag_target,out_real,out_imag):
+        return torch.mean(torch.sqrt(torch.pow(real_target-out_real,2)+torch.pow(imag_target-out_imag,2)))
     
+    def forward(self,ang):
+        x = self.angle_net(ang)
+        real = torch.cos(x*torch.pi*2)
+        imag = torch.sin(x*torch.pi*2)
+        return real,imag
     
-    def forward(self,ang):        
-        return self.angle_net(ang)
+    def configure_optimizers(self):
+        start = 1e-4
+        optimizer = torch.optim.Adam(self.parameters(),lr=start)
+        ##def lr_lambda(current_epoch):
+         #   return start if current_epoch < 1 else start
+        # Create the learning rate scheduler
+        #scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda)     
+        return [optimizer]
     
-    def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.0007)
+
+    def filter_z_score(self,data, threshold=1.8):
+        # Calculate the z-score for each data point in the batch
+        z_scores = (data - torch.mean(data, dim=1, keepdim=True)) / torch.std(data, dim=1, keepdim=True)
+
+        # Identify the outlier data points
+        outlier_mask = torch.abs(z_scores) > threshold
+
+        # Compute the number of data points don't pass the z-score threshold
+        valid_count = torch.sum(~outlier_mask, dim=1)
+
+        indices     = torch.nonzero(torch.eq(valid_count, 48)).squeeze()
+        # If batch there are not ouliers
+        if valid_count.eq(0).all():
+            return torch.empty(0),torch.empty(0)
+
+        # Filter out the invalid sequences from the batch
+        valid_data = data[indices]
+        
+
+        return valid_data, indices
+
     
     def common_step(self,batch,predict = False):
         if(predict == False):
-            i = self.current_epoch
-            self.SNR_db = 45 - 5 * (i % 8)
+            self.SNR_db = 30
+            #i = self.current_epoch
+            #self.SNR_db = 35 - 5 * (i % 5)
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         #chann preparation
         chann = chann.permute(0,3,1,2)
         #Multiply X by the channel            
         if(predict == True):
-            Y     = self.Get_Y(chann,x,conj=CONJ,noise_activ=True)
+            Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
         else:
-            Y     = self.Get_Y(chann,x,conj=CONJ,noise_activ=False)
+            Y     = self.Get_Y(chann,x,conj=True,noise_activ=False)
         
         if(CONJ == False):
             Y     = self.ZERO_X(chann,Y)
         
-        #normalize angle
-        src_ang = (torch.angle(Y) + np.pi) / (2 * np.pi)
-        #Normalize target 
-        tgt_ang = (torch.angle(x) + np.pi) / (2 * np.pi)
+        #Filter batches that are not outliers, borring batches
+        valid_data, valid_indices   = self.filter_z_score(Y)
+        if valid_data.numel() != 0:
+            #normalize angle
+            Y = valid_data
+            src_ang = (torch.angle(Y)) / (2 * np.pi)
+            
+            #model eval
+            out_real,out_imag = self(src_ang)
+            # Unitary magnitud imaginary, only matters angle
+            x = x[valid_indices]
+            target     = torch.polar(torch.ones(x.shape).to(torch.float64).to(self.device),torch.angle(x))    
+
+            output = torch.stack((out_real,out_imag),dim=-1)
+            tgt    = torch.stack((target.real,target.imag),dim=-1)
+            
+            #loss func
+            #loss  = self.loss_f(target.real,target.imag,out_real,out_imag)
+            loss  = self.loss_f(tgt,output)
         
-        #model eval
-        output_ang = self(src_ang)
-        #loss func
-        loss  = self.loss_f(output_ang,tgt_ang)
+            if(predict == True):
+                #torch polar polar(abs: Tensor, angle: Tensor)
+                x_hat    = torch.complex(out_real,out_imag)
+            
+                #ComparePlot(x,x_hat)
+                self.SNR_calc(x_hat,target)
         
-        if(predict == True):
-            #torch polar polar(abs: Tensor, angle: Tensor)
-            output_ang = output_ang*(2 * np.pi)-np.pi
-            x_hat    = torch.polar(torch.ones(output_ang.shape).to(torch.float64)*.7,output_ang)
-            self.SNR_calc(x_hat,x)
+        else: # block back propagation
+            loss = torch.tensor([0.0],requires_grad=True).to(torch.float64).to(self.device)
         
         return loss
     
@@ -100,7 +152,11 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         return {'val_loss':loss}
     
     def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        # Concatenate the tensors in outputs
+        losses = [x['val_loss'] for x in outputs]
+        concatenated = torch.cat([l.view(-1) for l in losses])
+        # Compute the average loss
+        avg_loss = concatenated.mean()
         self.log("avg_val_loss", avg_loss) #tensorboard logs
         return {'val_loss':avg_loss}
     
@@ -121,8 +177,8 @@ class PhaseNet(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PhaseNet/lightning_logs/version_8/checkpoints/epoch=20-step=25200.ckpt')
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PhaseNet/lightning_logs/version_91/checkpoints/epoch=3-step=4800.ckpt')
     Cn = PhaseNet(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
