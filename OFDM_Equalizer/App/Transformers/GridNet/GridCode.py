@@ -24,6 +24,9 @@ class GridCode():
         self.binxy = torch.arange(start=4, end=4 + (len(self.binsx) - 1) * (len(self.binsy) - 1)).view(len(self.binsx) - 1, len(self.binsy) - 1)
 
     def Encode(self,data):
+        
+        if type(data) == np.ndarray:
+            data = torch.from_numpy(data)
         # Create empty tensors for storing the indices of the bins for the real and imaginary parts of the data
         if data.shape != self.indices_shape:
             self.x_indices  = torch.zeros(data.shape, dtype=torch.long)
@@ -32,9 +35,6 @@ class GridCode():
         else:
             self.x_indices.zero_()
             self.y_indices.zero_()
-            
-        if type(data) == np.ndarray:
-            data = torch.from_numpy(data)
             
         # Loop over the bins for the real and imaginary parts
         for i in range(len(self.binsx) - 1):

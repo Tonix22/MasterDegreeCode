@@ -22,7 +22,7 @@ from GridCode import GridCode
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 16
-NUM_EPOCHS = 20 #50,100,150
+NUM_EPOCHS = 10 #50,100,150
 SNR        = 25
 #
 LAST_LIST   = 250
@@ -60,24 +60,17 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         
         pl.LightningModule.__init__(self)
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
+        self.mydevice = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # ------------ Grid config ------------
         self.grid = GridCode(GRID_STEP)
         # Normalize Ground Truth constelation values
         self.data.Qsym.GroundTruth  = self.data.Qsym.GroundTruth/np.max(np.abs(self.data.Qsym.GroundTruth))
         # Center Ground truth to grid
         self.data.Qsym.GroundTruth  = self.grid.Decode(self.grid.Encode(self.data.Qsym.GroundTruth)).numpy()
-        # Center Constelation symbols to grid
-        self.data.Qsym.QAM_norm_arr = self.grid.Decode(self.grid.Encode(self.data.Qsym.QAM_norm_arr)).numpy()
-        
-        
-        # ------------ Telecom Stuff ------------
-        self.snr_db_values = [(80,40), (130,30), (170,20), (200,10),(LAST_LIST,5)]
-                
-        # ------------ Alphabet ------------
-        
+        # Center Constelation symbols tf.SNR_db = SNR
         # sos 2 eos 3
-        self.sos = torch.full((BATCHSIZE, 1), fill_value=2)
-        self.eos = torch.full((BATCHSIZE, 1), fill_value=3)
+        self.sos = torch.full((BATCHSIZE, 1), fill_value=2).to(self.mydevice)
+        self.eos = torch.full((BATCHSIZE, 1), fill_value=3).to(self.mydevice)
         
         # ----------- Network Sections -----
         
@@ -158,17 +151,23 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return torch.optim.Adam(self.parameters(),lr=.001,weight_decay=1e-5)
     
     #This function already does normalization 
-    def grid_token(self,data):
+    def grid_token(self,data,indices):
         # Get the absolute maximum value of the data along the sequence dimension (dim=1)
         # Keep the first dimension with keepdim=True for broadcasting purposes
         src_abs_factor = torch.max(torch.abs(data),dim=1, keepdim=True)[0]
         # Normalize the data by dividing it with the maximum absolute value
         data = data/src_abs_factor
         # Encode data    
-        encoded = self.grid.Encode(data)
-        encoded = torch.cat((self.sos,encoded,self.eos),dim=1)
+        encoded = self.grid.Encode(data).to(self.mydevice)
+        temp_sos = self.sos[indices]
+        temp_eos = self.eos[indices]
+        if(indices.dim() == 0):
+            temp_sos = torch.unsqueeze(temp_sos,0)
+            temp_eos = torch.unsqueeze(temp_eos,0)
+            
+        encoded = torch.cat((temp_sos,encoded,temp_eos),dim=1)
         
-        return encoded.to(self.device)
+        return encoded
     
     def grid_decode(self,encoded):      
         return self.grid.Decode(encoded)
@@ -197,17 +196,21 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         Y        = self.Get_Y(chann,x,conj=True,noise_activ=True)
         
         #Filter batches that are not outliers, borring batches
-        valid_data, valid_indices   = self.filter_z_score(Y)
+        valid_data, valid_indices   = self.filter_z_score(Y,threshold=1.75)
         
         if valid_data.numel() != 0:
             Y = valid_data
             x = x[valid_indices]
+
+            if valid_data.dim() == 1:
+              Y = torch.unsqueeze(Y, 0)
+              x = torch.unsqueeze(x,0)
             
             # Transform src values to grid tokens 
-            src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
+            src_tokens = self.grid_token(Y,indices=valid_indices).permute(1,0) # [length,batch]
             
             #Get target tokens
-            tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
+            tgt_tokens = self.grid_token(x,indices=valid_indices).permute(1,0) # [length,batch]
             
             #model eval transformer
             output = self(src_tokens,tgt_tokens[:-1, :])
@@ -234,7 +237,11 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return {'val_loss':loss}
     
     def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        # Concatenate the tensors in outputs
+        losses = [x['val_loss'] for x in outputs]
+        concatenated = torch.cat([l.view(-1) for l in losses])
+        # Compute the average loss
+        avg_loss = concatenated.mean()
         self.log("avg_val_loss", avg_loss) #tensorboard logs
         return {'val_loss':avg_loss}
     
@@ -253,8 +260,9 @@ class GridTransformer(pl.LightningModule,Rx_loader):
                 x = x[valid_indices]
                 
                 # Transform src values to grid tokens 
-                src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
-                tgt_tokens = self.grid_token(x)
+                src_tokens = self.grid_token(Y,indices=valid_indices).permute(1,0)  # [length,batch]
+                #Get target tokens
+                tgt_tokens = self.grid_token(x,indices=valid_indices).permute(1,0) # [length,batch]
                             
                 x_hat = torch.zeros(x.shape,dtype=torch.int64).to(self.device)
                 for batch_i in range(0,BATCHSIZE):
@@ -289,8 +297,8 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_7/checkpoints/epoch=19-step=24000.ckpt')
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+                #resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_7/checkpoints/epoch=19-step=24000.ckpt')
     tf = GridTransformer(
     embedding_size,
     src_pad_idx,
@@ -304,8 +312,8 @@ if __name__ == '__main__':
     trainer.fit(tf)
     
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
-    tf.SNR_BER_TEST(trainer,formating)
+    #formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
+    #tf.SNR_BER_TEST(trainer,formating)
     
 
     
