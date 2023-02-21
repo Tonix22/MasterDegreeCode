@@ -22,14 +22,13 @@ import torch.optim.lr_scheduler as lr_scheduler
 
 #Hyperparameters
 BATCHSIZE  = 10
-QAM        = 4
-NUM_EPOCHS = 2
+QAM        = 16
+NUM_EPOCHS = 3
 #NN parameters
 INPUT_SIZE  = 48
 HIDDEN_SIZE = 240 #48*1.5
 #Optimizer
-LEARNING_RATE = .001
-EPSILON = .01
+LEARNING_RATE = 1e-4
 CONJ = True
 
 
@@ -59,40 +58,14 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         return real,imag
     
     def configure_optimizers(self):
-        start = 1e-4
-        optimizer = torch.optim.Adam(self.parameters(),lr=start)
-        ##def lr_lambda(current_epoch):
-         #   return start if current_epoch < 1 else start
-        # Create the learning rate scheduler
-        #scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda)     
+        start = LEARNING_RATE
+        optimizer = torch.optim.Adam(self.parameters(),lr=start)  
         return [optimizer]
     
-
-    def filter_z_score(self,data, threshold=1.8):
-        # Calculate the z-score for each data point in the batch
-        z_scores = (data - torch.mean(data, dim=1, keepdim=True)) / torch.std(data, dim=1, keepdim=True)
-
-        # Identify the outlier data points
-        outlier_mask = torch.abs(z_scores) > threshold
-
-        # Compute the number of data points don't pass the z-score threshold
-        valid_count = torch.sum(~outlier_mask, dim=1)
-
-        indices     = torch.nonzero(torch.eq(valid_count, 48)).squeeze()
-        # If batch there are not ouliers
-        if valid_count.eq(0).all():
-            return torch.empty(0),torch.empty(0)
-
-        # Filter out the invalid sequences from the batch
-        valid_data = data[indices]
-        
-
-        return valid_data, indices
-
     
     def common_step(self,batch,predict = False):
         if(predict == False):
-            self.SNR_db = 30
+            self.SNR_db = 40
             #i = self.current_epoch
             #self.SNR_db = 35 - 5 * (i % 5)
         # training_step defines the train loop. It is independent of forward
@@ -103,7 +76,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         if(predict == True):
             Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
         else:
-            Y     = self.Get_Y(chann,x,conj=True,noise_activ=False)
+            Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
         
         if(CONJ == False):
             Y     = self.ZERO_X(chann,Y)
