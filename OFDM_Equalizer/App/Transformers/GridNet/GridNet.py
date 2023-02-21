@@ -186,30 +186,39 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
     def common_step(self,batch,predict = False):
         if(predict == False):
-            i = self.current_epoch
-            self.SNR_db = 35 - 5 * (i % 4)
-            #self.SNR_db = 20
+            #i = self.current_epoch
+            #self.SNR_db = 35 - 5 * (i % 4)
+            self.SNR_db = 35
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         # Chann Formating
         chann = chann.permute(0,3,1,2) 
         # Prepare GridTransformer
-        Y        = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=True)
-        Yclean   = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=False)
+        Y        = self.Get_Y(chann,x,conj=True,noise_activ=True)
         
-        # Transform src values to grid tokens 
-        src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
+        #Filter batches that are not outliers, borring batches
+        valid_data, valid_indices   = self.filter_z_score(Y)
         
-        #Get target tokens
-        tgt_tokens = self.grid_token(Yclean).permute(1,0) # [length,batch]
-        
-        #model eval transformer
-        output = self(src_tokens,tgt_tokens[:-1, :])
-        output = output.reshape(-1, output.shape[2]) # then we merge first two dim
-        
-        #loss func
-        target = tgt_tokens[1:].reshape(-1)
-        loss   = self.loss_f(output,target)
+        if valid_data.numel() != 0:
+            Y = valid_data
+            x = x[valid_indices]
+            
+            # Transform src values to grid tokens 
+            src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
+            
+            #Get target tokens
+            tgt_tokens = self.grid_token(x).permute(1,0) # [length,batch]
+            
+            #model eval transformer
+            output = self(src_tokens,tgt_tokens[:-1, :])
+            output = output.reshape(-1, output.shape[2]) # then we merge first two dim
+            
+            #loss func
+            target = tgt_tokens[1:].reshape(-1)
+            loss   = self.loss_f(output,target)
+            
+        else: # block back propagation
+            loss = torch.tensor([0.0],requires_grad=True).to(torch.float64).to(self.device)
         
         return loss
       
@@ -230,39 +239,43 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return {'val_loss':avg_loss}
     
     def predict_step(self, batch, batch_idx):
-        
-        if(batch_idx < 40 ):
+        #Filter batches that are not outliers, borring batches
+        if(batch_idx < 100 ):
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             # Chann Formating
-            chann = chann.permute(0,3,1,2) 
-            # Prepare GridTransformer
-            Y        = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=True)
-            Yclean   = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=False)
-            # Transform src values to grid tokens 
-            src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
-            tgt_tokens = self.grid_token(Yclean)
-                        
-            x_hat = torch.zeros(x.shape,dtype=torch.int64).to(self.device)
-            for batch_i in range(0,BATCHSIZE):
-                outputs = [2]#"<sos>"
-                sentence_tensor = src_tokens[:,batch_i].unsqueeze(1)
-                for symbol in range(0,48):
-                    trg_tensor = torch.LongTensor(outputs).unsqueeze(1).to(self.device)
-                    output     = self(sentence_tensor, trg_tensor)
-                    best_guess = output.argmax(2)[-1, :].item()
-                    outputs.append(best_guess)
-                    # Concatenate previous input with predicted best word
-                x_hat[batch_i] = torch.Tensor(outputs[1:]).to(torch.int64).to(self.device)
-        
-            #Get target tokens
-            #degrid bits
+            chann = chann.permute(0,3,1,2)
+            Y        = self.Get_Y(chann,x,conj=True,noise_activ=True)
+            valid_data, valid_indices   = self.filter_z_score(Y)
+            if valid_data.numel() != 0:
+                # Prepare GridTransformer
+                Y = valid_data
+                x = x[valid_indices]
+                
+                # Transform src values to grid tokens 
+                src_tokens = self.grid_token(Y).permute(1,0) # [length,batch]
+                tgt_tokens = self.grid_token(x)
+                            
+                x_hat = torch.zeros(x.shape,dtype=torch.int64).to(self.device)
+                for batch_i in range(0,BATCHSIZE):
+                    outputs = [2]#"<sos>"
+                    sentence_tensor = src_tokens[:,batch_i].unsqueeze(1)
+                    for symbol in range(0,48):
+                        trg_tensor = torch.LongTensor(outputs).unsqueeze(1).to(self.device)
+                        output     = self(sentence_tensor, trg_tensor)
+                        best_guess = output.argmax(2)[-1, :].item()
+                        outputs.append(best_guess)
+                        # Concatenate previous input with predicted best word
+                    x_hat[batch_i] = torch.Tensor(outputs[1:]).to(torch.int64).to(self.device)
             
-            x_hat = self.grid_decode(x_hat)
-            x_hat = self.ZERO_X(chann,x_hat) # zero forcing after clean up
-            x     = self.grid_decode(tgt_tokens[:,1:-1])
-            self.SNR_calc(x_hat,x,norm=True) 
-            
+                #Get target tokens
+                #degrid bits
+                
+                x_hat = self.grid_decode(x_hat).to(self.device)
+                x_hat = self.ZERO_X(chann,x_hat) # zero forcing after clean up
+                x     = self.grid_decode(tgt_tokens[:,1:-1])
+                self.SNR_calc(x_hat,x,norm=True) 
+                
         return 0 
     
     def train_dataloader(self):
@@ -276,8 +289,8 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_1/checkpoints/epoch=49-step=60000.ckpt')
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
+                resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_7/checkpoints/epoch=19-step=24000.ckpt')
     tf = GridTransformer(
     embedding_size,
     src_pad_idx,
@@ -288,7 +301,6 @@ if __name__ == '__main__':
     dropout,
     max_len)
     
-    tf.SNR_db = SNR
     trainer.fit(tf)
     
     #name of output log file 
