@@ -185,15 +185,16 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
     def common_step(self,batch,predict = False):
         if(predict == False):
-            #i = self.current_epoch
-            #self.SNR_db = 35 - 5 * (i % 4)
-            self.SNR_db = 40
+            i = self.current_epoch
+            self.SNR_db = 40  - 5 * (i % 4)
+            #self.SNR_db = 25
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         # Chann Formating
-        chann = chann.permute(0,3,1,2) 
+        chann = chann.permute(0,3,1,2)
         # Prepare GridTransformer
-        Y        = self.Get_Y(chann,x,conj=True,noise_activ=True)
+        Y  = self.Get_Y(chann,x,conj=False,noise_activ=True)
+        Y  = self.ZERO_X(chann,Y) 
         
         #Filter batches that are not outliers, borring batches
         valid_data, valid_indices   = self.filter_z_score(Y,threshold=1.75)
@@ -252,7 +253,10 @@ class GridTransformer(pl.LightningModule,Rx_loader):
             chann, x = batch
             # Chann Formating
             chann = chann.permute(0,3,1,2)
-            Y        = self.Get_Y(chann,x,conj=True,noise_activ=True)
+                    # Prepare GridTransformer
+            Y  = self.Get_Y(chann,x,conj=False,noise_activ=True)
+            Y  = self.ZERO_X(chann,Y)
+            
             valid_data, valid_indices   = self.filter_z_score(Y)
             if valid_data.numel() != 0:
                 # Prepare GridTransformer
