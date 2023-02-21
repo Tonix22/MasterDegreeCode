@@ -114,7 +114,7 @@ class Rx_loader(object):
     
     #for internal use in the predict section of lightning
     def SNR_calc(self,x_hat,x,norm=False):
-        for n in range(self.batch_size):
+        for n in range(x_hat.shape[0]):
             rx     = x_hat[n].cpu().detach().numpy()
             rxbits = self.data.Qsym.Demod(rx,norm=norm)
             rxbits = np.unpackbits(np.expand_dims(rxbits.astype(np.uint8),axis=1),axis=1)
@@ -185,7 +185,7 @@ class Rx_loader(object):
             x_lmse[i] = torch.linalg.inv(H_H@H+torch.eye(48).to(self.device)*Pn)@H_H@Y[i]
         return x_lmse
     
-    def ZERO_X(self,chann,Y):
+    def Chann_diag(self,chann):
         # Extract the diagonal of each matrix in the tensor
         diagonals = []
         H = torch.complex(chann[:,0,:, :],chann[:,1,:, :])
@@ -196,8 +196,87 @@ class Rx_loader(object):
 
         # Stack the diagonals into a new tensor
         diagonal_tensor = torch.stack(diagonals)
-        
-        x_hat = Y/diagonal_tensor #ZERO FORCING equalizer
+        return diagonal_tensor
+    
+    def Chann_diag_complex(self,chann):
+        # Extract the diagonal of each matrix in the tensor
+        diagonals = []
+        for i in range(chann.shape[0]):
+            matrix   = chann[i]
+            diagonal = torch.diagonal(matrix)
+            diagonals.append(diagonal)
+
+        # Stack the diagonals into a new tensor
+        diagonal_tensor = torch.stack(diagonals)
+        return diagonal_tensor
+    
+    def ZERO_X(self,chann,Y):
+        x_hat = Y/self.Chann_diag(chann) #ZERO FORCING equalizer
         return x_hat
-            
+    
+        #90% Confidence level
+    def filter_z_score(self,data, threshold=1.645):
+        # Calculate the z-score for each data point in the batch
+        z_scores = (data - torch.mean(data, dim=1, keepdim=True)) / torch.std(data, dim=1, keepdim=True)
+
+        # Identify the outlier data points
+        outlier_mask = torch.abs(z_scores) > threshold
+
+        # Compute the number of data points don't pass the z-score threshold
+        valid_count = torch.sum(~outlier_mask, dim=1)
+
+        indices     = torch.nonzero(torch.eq(valid_count, 48)).squeeze()
+        # If batch there are not odiagonal_tensor
+        # Filter out the invalid sequences from the batch
+        valid_data = data[indices]
         
+
+        return valid_data, indices
+
+    def filter_z_score_matrix(self,batch_tensor, threshold=1.645):
+        diagonal_tensor = self.Chann_diag(batch_tensor)    
+        
+        # Compute the mean and standard deviation of each batch
+        mean = torch.mean(diagonal_tensor, dim=1, keepdim=True)
+        std  = torch.std(diagonal_tensor, dim=1, keepdim=True)
+        
+        # Compute the z-score for each element in the tensor
+        zscore_tensor = (diagonal_tensor - mean) / std.clamp(min=1e-6)
+        
+        # Create a mask indicating which elements have a z-score below the threshold
+        outlier_mask = zscore_tensor.abs() > threshold
+        
+        # Compute the number of data points don't pass the z-score threshold
+        valid_count = torch.sum(~outlier_mask, dim=1)
+
+        indices     = torch.nonzero(torch.eq(valid_count, 48)).squeeze()
+        # If batch there are not odiagonal_tensor
+        # Filter out the invalid sequences from the batch
+        valid_data = batch_tensor[indices]
+        
+        # Return the filtered tensor
+        return valid_data,indices
+            
+    def filter_tensor_by_zscore(self,batch_tensor, threshold=9):
+        # Compute the mean and standard deviation of each batch
+        mean = torch.mean(batch_tensor, dim=[1, 2], keepdim=True)
+        std = torch.std(batch_tensor, dim=[1, 2], keepdim=True)
+        
+        # Compute the z-score for each element in the tensor
+        zscore_tensor   = (batch_tensor - mean) / std.clamp(min=1e-6)
+        diagonal_tensor = self.Chann_diag_complex(zscore_tensor)  
+    
+        # Create a mask indicating which elements have a z-score below the threshold
+        zscore_mask = diagonal_tensor.abs() < threshold
+        
+        # Compute the number of data points don't pass the z-score threshold
+        valid_count = torch.sum(zscore_mask, dim=1)
+
+        indices     = torch.nonzero(torch.eq(valid_count, 48)).squeeze()
+        # If batch there are not odiagonal_tensor
+        # Filter out the invalid sequences from the batch
+        valid_data = batch_tensor[indices]
+        
+        # Return the filtered tensor
+        return valid_data,indices
+
