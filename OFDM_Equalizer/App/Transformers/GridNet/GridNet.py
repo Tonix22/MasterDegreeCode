@@ -20,9 +20,9 @@ from utils import vector_to_pandas, get_time_string
 from GridCode import GridCode
 
 #Hyperparameters
-BATCHSIZE  = 10
+BATCHSIZE  = 100
 QAM        = 16
-NUM_EPOCHS = 100 #50,100,150
+NUM_EPOCHS = 20 #50,100,150
 SNR        = 25
 #
 LAST_LIST   = 250
@@ -35,9 +35,9 @@ NOISE = True
 LEARNING_RATE = .0001
 
 # Model hyperparameters
-GRID_STEP = 1/8
+GRID_STEP = 1/7
 embedding_size = 512
-num_heads      = 16
+num_heads      = 8
 num_encoder_layers = 6
 num_decoder_layers = 6
 dropout = 0.10
@@ -148,7 +148,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return out
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.001,weight_decay=1e-5)
+        return torch.optim.Adam(self.parameters(),lr=.001,weight_decay=1e-4)
     
     #This function already does normalization 
     def grid_token(self,data,indices):
@@ -186,18 +186,18 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     def common_step(self,batch,predict = False):
         if(predict == False):
             i = self.current_epoch
-            self.SNR_db = 40  - 5 * (i % 4)
-            #self.SNR_db = 25
+            self.SNR_db = 35  - 5 * (i % 6)
+            #self.SNR_db = 30
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         # Chann Formating
         chann = chann.permute(0,3,1,2)
         # Prepare GridTransformer
-        Y  = self.Get_Y(chann,x,conj=False,noise_activ=True)
-        Y  = self.ZERO_X(chann,Y) 
+        Y  = self.Get_Y(chann,x,conj=True,noise_activ=True)
+        #Y  = self.ZERO_X(chann,Y)
         
         #Filter batches that are not outliers, borring batches
-        valid_data, valid_indices   = self.filter_z_score(Y,threshold=1.75)
+        valid_data, valid_indices   = self.filter_z_score(Y,threshold=2)
         
         if valid_data.numel() != 0:
             Y = valid_data
@@ -248,14 +248,14 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         #Filter batches that are not outliers, borring batches
-        if(batch_idx < 400 ):
+        if(batch_idx < 35 ):
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             # Chann Formating
             chann = chann.permute(0,3,1,2)
                     # Prepare GridTransformer
-            Y  = self.Get_Y(chann,x,conj=False,noise_activ=True)
-            Y  = self.ZERO_X(chann,Y)
+            Y  = self.Get_Y(chann,x,conj=True,noise_activ=True)
+            #Y  = self.ZERO_X(chann,Y)
             
             valid_data, valid_indices   = self.filter_z_score(Y)
             if valid_data.numel() != 0:
@@ -305,8 +305,8 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_43/checkpoints/epoch=99-step=120000.ckpt')
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+                #resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_2/checkpoints/epoch=32-step=3960.ckpt')
     tf = GridTransformer(
     embedding_size,
     src_pad_idx,
@@ -320,8 +320,8 @@ if __name__ == '__main__':
     trainer.fit(tf)
     
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
-    tf.SNR_BER_TEST(trainer,formating)
+    #formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
+    #tf.SNR_BER_TEST(trainer,formating)
     
 
     
