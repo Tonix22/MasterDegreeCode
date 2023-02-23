@@ -88,7 +88,7 @@ arr = []
 arr.append(FXPA(1.33))
 arr.append(FXPA(0.27))
 a = np.array([[FXPA(1.11), FXPA(1.77)], [FXPA(0.333), FXPA(3.14)]])
-b = np.array([[FXPA(0.01), FXPA(1.11)], [FXPA(2.1), FXPA(0.14)]])
-c = np.matmul(a,b)
+b = np.array([FXPA(0.01), FXPA(1.11)])
+c = a@b
 print(c)
 #print(np.sum(np.asarray(arr)))
