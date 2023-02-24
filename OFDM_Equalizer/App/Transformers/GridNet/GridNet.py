@@ -18,11 +18,12 @@ sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
 from utils import vector_to_pandas, get_time_string
 from GridCode import GridCode
+from RadGrid import PolarGridCode
 
 #Hyperparameters
-BATCHSIZE  = 100
+BATCHSIZE  = 10
 QAM        = 16
-NUM_EPOCHS = 20 #50,100,150
+NUM_EPOCHS = 25 #50,100,150
 SNR        = 25
 #
 LAST_LIST   = 250
@@ -35,14 +36,19 @@ NOISE = True
 LEARNING_RATE = .0001
 
 # Model hyperparameters
-GRID_STEP = 1/7
+GRID_STEP = 1/8
+GRID = "Polar"
+#GRID = "Square"
+STEP_RADIUS = 0.2
+STEP_ANGLE  = np.pi/16
+
 embedding_size = 512
 num_heads      = 8
 num_encoder_layers = 6
 num_decoder_layers = 6
 dropout = 0.10
 max_len = 50
-forward_expansion = 2048 # default 
+forward_expansion = 2048 # default
 src_pad_idx       = 1
 
 
@@ -62,7 +68,14 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
         self.mydevice = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # ------------ Grid config ------------
-        self.grid = GridCode(GRID_STEP)
+        self.vocab_size = None
+        if(GRID == "Square"):
+            self.grid = GridCode(GRID_STEP)
+            self.vocab_size = self.grid.binxy.max()
+        elif(GRID == "Polar"):
+            self.grid   =  PolarGridCode(STEP_RADIUS, STEP_ANGLE)
+            self.vocab_size = self.grid.binra.max()
+            
         # Normalize Ground Truth constelation values
         self.data.Qsym.GroundTruth  = self.data.Qsym.GroundTruth/np.max(np.abs(self.data.Qsym.GroundTruth))
         # Center Ground truth to grid
@@ -79,7 +92,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         #soft_ground truth
         self.ground_truth = GROUND_TRUTH_SOFT
 
-        self.vocab_size = self.grid.binxy.max()
+        
         #Embedding section
         #src embedding
         self.src_word_embedding     = nn.Embedding(self.vocab_size , embedding_size)
@@ -148,7 +161,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return out
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.001,weight_decay=1e-4)
+        return torch.optim.Adam(self.parameters(),lr=.001,weight_decay=.0001)
     
     #This function already does normalization 
     def grid_token(self,data,indices):
@@ -186,7 +199,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     def common_step(self,batch,predict = False):
         if(predict == False):
             i = self.current_epoch
-            self.SNR_db = 35  - 5 * (i % 6)
+            self.SNR_db = 40  - 5 * (i % 4)
             #self.SNR_db = 30
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
@@ -197,7 +210,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         #Y  = self.ZERO_X(chann,Y)
         
         #Filter batches that are not outliers, borring batches
-        valid_data, valid_indices   = self.filter_z_score(Y,threshold=2)
+        valid_data, valid_indices   = self.filter_z_score(Y,threshold=1.8)
         
         if valid_data.numel() != 0:
             Y = valid_data
@@ -248,7 +261,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         #Filter batches that are not outliers, borring batches
-        if(batch_idx < 35 ):
+        if(batch_idx < 10 ):
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             # Chann Formating
@@ -320,8 +333,8 @@ if __name__ == '__main__':
     trainer.fit(tf)
     
     #name of output log file 
-    #formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
-    #tf.SNR_BER_TEST(trainer,formating)
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
+    tf.SNR_BER_TEST(trainer,formating)
     
 
     

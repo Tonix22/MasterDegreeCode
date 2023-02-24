@@ -101,7 +101,7 @@ class PolarGridCode():
 
 
 
-
+"""
 # Define the step sizes for binning
 step_radius = 0.2
 step_angle = np.pi/16
@@ -129,3 +129,4 @@ coding.plot_scatter_values(ax, decoded, "Decoded Data")
 
 plt.show()
 #plt.savefig('RadGridTest.png')
+"""
