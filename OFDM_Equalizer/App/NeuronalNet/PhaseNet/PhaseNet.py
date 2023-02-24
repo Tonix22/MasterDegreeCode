@@ -23,20 +23,17 @@ import torch.optim.lr_scheduler as lr_scheduler
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 16
-NUM_EPOCHS = 3
+NUM_EPOCHS = 2
 #NN parameters
 INPUT_SIZE  = 48
 HIDDEN_SIZE = 240 #48*1.5
 #Optimizer
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 8e-5 # 16 QAM 8e-5, 4QAM 4e-5
 CONJ = True
 
-
-class PhaseNet(pl.LightningModule,Rx_loader):
-    def __init__(self, input_size, hidden_size):
-        pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
-        
+class PhaseEqualizer(nn.Module):
+    def __init__(self,input_size, hidden_size):
+        super(PhaseEqualizer,self).__init__()
         self.angle_net = nn.Sequential(
             nn.Linear(input_size, hidden_size,bias=True),
             nn.Hardtanh(),
@@ -44,8 +41,18 @@ class PhaseNet(pl.LightningModule,Rx_loader):
             nn.Linear(hidden_size*int(3), hidden_size,bias=True),
             nn.Hardtanh(),
             nn.Linear(hidden_size, input_size,bias=True)
-        ).double()    
-        self.loss_f = nn.MSELoss()
+        ).double()   
+
+    def forward(self,abs): 
+        return self.angle_net(abs)
+
+class PhaseNet(pl.LightningModule,Rx_loader):
+    def __init__(self, input_size, hidden_size):
+        pl.LightningModule.__init__(self)
+        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
+        
+        self.angle_net = PhaseEqualizer(input_size,hidden_size)
+        self.loss_f    = nn.MSELoss()
         #self.loss_f = self.distanceLoss
         
     def distanceLoss(self,real_target,imag_target,out_real,out_imag):
@@ -53,9 +60,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
     
     def forward(self,ang):
         x = self.angle_net(ang)
-        real = torch.cos(x*torch.pi*2)
-        imag = torch.sin(x*torch.pi*2)
-        return real,imag
+        return x
     
     def configure_optimizers(self):
         start = LEARNING_RATE
@@ -89,17 +94,20 @@ class PhaseNet(pl.LightningModule,Rx_loader):
             src_ang = (torch.angle(Y)) / (2 * np.pi)
             
             #model eval
-            out_real,out_imag = self(src_ang)
+            out_ang  = self(src_ang)
+            out_real = torch.cos(out_ang*torch.pi*2)
+            out_imag = torch.sin(out_ang*torch.pi*2)
             # Unitary magnitud imaginary, only matters angle
             x = x[valid_indices]
             target     = torch.polar(torch.ones(x.shape).to(torch.float64).to(self.device),torch.angle(x))    
 
-            output = torch.stack((out_real,out_imag),dim=-1)
-            tgt    = torch.stack((target.real,target.imag),dim=-1)
+            #output = torch.stack((out_real,out_imag),dim=-1)
+            #tgt    = torch.stack((target.real,target.imag),dim=-1)
             
             #loss func
             #loss  = self.loss_f(target.real,target.imag,out_real,out_imag)
-            loss  = self.loss_f(tgt,output)
+            #loss  = self.loss_f(tgt,output)
+            loss = .5*self.loss_f(target.real,out_real)+.5*self.loss_f(target.imag,out_imag)
         
             if(predict == True):
                 #torch polar polar(abs: Tensor, angle: Tensor)
