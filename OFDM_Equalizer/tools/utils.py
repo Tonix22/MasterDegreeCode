@@ -2,13 +2,14 @@ import numpy as np
 import pandas as pd
 import sys
 import os
+from scipy.interpolate import interp1d
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
 sys.path.insert(0, main_path+"conf")
 
 from config import Test_PAHT
 from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP, PLOTS_PATH
-import matplotlib.pyplot as plot
+import matplotlib.pyplot as plt
 from datetime import datetime
 
 MONTH = "January"
@@ -28,19 +29,20 @@ def read_plot_pandas(BER_list,labels,title=""):
     for BER_it in BER_list:
         df  = pd.read_csv(BER_it)
         BER = df.iloc[:, 1].to_numpy()
-        plot.grid(True, which ="both")
-        plot.semilogy(indexValues,BER, label= labels[index])
-        index+=1
+        f = interp1d(indexValues, BER, kind='cubic')
+        indexValues_interp = np.linspace(GOLDEN_WORST_SNR, GOLDEN_BEST_SNR, 200)
+        BER_interp = f(indexValues_interp)
+        plt.grid(True, which="both")
+        plt.semilogy(indexValues_interp, BER_interp, label=labels[index])
+        index += 1
+
+    plt.legend()
+    plt.title('SNR and BER'+title)
+    plt.xlabel('SNR')
+    plt.ylabel('BER')
     
-    plot.legend()  
-    plot.title('SNR and BER'+title)
-    # Give x axis label for the semilogy plot
-    plot.xlabel('SNR')
-    # Give y axis label for the semilogy plot
-    plot.ylabel('BER')
-    
-    #plot.show()
-    plot.savefig('{}/Results_{}.png'.format(PLOTS_PATH,get_time_string()))
+    plt.show()
+    #plt.savefig('{}/Results_{}.png'.format(PLOTS_PATH,get_time_string()))
            
 
 def vector_to_pandas(name,BER,path=Test_PAHT):
