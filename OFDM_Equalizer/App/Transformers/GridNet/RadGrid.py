@@ -19,7 +19,7 @@ class PolarGridCode():
 
         # Define bins for the radius and angle coordinates of the data
         self.binsr = torch.arange(0, 1 + self.step_radius, self.step_radius, dtype=torch.float64)
-        self.binsa = torch.arange(0, 2 * np.pi + self.step_angle, self.step_angle, dtype=torch.float64)
+        self.binsa = torch.arange(-np.pi, np.pi + self.step_angle, self.step_angle, dtype=torch.float64)
 
         # Create a 2D bin index matrix for encoding
         self.binra = torch.arange(start=0, end=(len(self.binsr) - 1) * len(self.binsa)).view(len(self.binsr) - 1, len(self.binsa))
@@ -86,7 +86,7 @@ class PolarGridCode():
         # Set the tick values for the radius and angle coordinates
     
         r_ticks = self.binsr
-        a_ticks = self.binsa
+        a_ticks = (self.binsa+torch.pi)
         ax.set_rticks(r_ticks)
         ax.set_thetagrids(a_ticks * 180 / np.pi)
         
@@ -103,8 +103,8 @@ class PolarGridCode():
 
 
 # Define the step sizes for binning
-step_radius = 0.1
-step_angle = np.pi/8
+step_radius = 0.2
+step_angle = np.pi/16
 
 # Create an instance of the PolarGridCode class
 coding = PolarGridCode(step_radius, step_angle)
