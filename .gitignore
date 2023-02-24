@@ -25,3 +25,5 @@ OFDM_Equalizer/.data/*
 OFDM_Equalizer/App/Transformers/NaturalLanguage/.data/multi30k/*
 *.svgz
 
+OFDM_Equalizer/App/FixedPoint/libtorch/*
+OFDM_Equalizer/App/FixedPoint/build/*
