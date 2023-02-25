@@ -20,6 +20,10 @@ from utils import vector_to_pandas, get_time_string
 from GridCode import GridCode
 from RadGrid import PolarGridCode
 
+PreprocessPath = os.path.dirname(os.path.abspath(__file__))+"/../../"
+sys.path.insert(0, PreprocessPath+"NeuronalNet/PolarPreTrained")
+from PolarPreproces import PolarPreprocess
+
 #Hyperparameters
 BATCHSIZE  = 10
 QAM        = 16
@@ -37,15 +41,16 @@ LEARNING_RATE = .0001
 
 # Model hyperparameters
 GRID_STEP = 1/8
-GRID = "Polar"
+GRID = "Square"
 #GRID = "Square"
 STEP_RADIUS = 0.2
 STEP_ANGLE  = np.pi/16
+PREPRORCES = False
 
 embedding_size = 512
 num_heads      = 8
-num_encoder_layers = 6
-num_decoder_layers = 6
+num_encoder_layers = 5 # 6
+num_decoder_layers = 5 # 6
 dropout = 0.10
 max_len = 50
 forward_expansion = 2048 # default
@@ -75,7 +80,10 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         elif(GRID == "Polar"):
             self.grid   =  PolarGridCode(STEP_RADIUS, STEP_ANGLE)
             self.vocab_size = self.grid.binra.max()
-            
+        
+        if(PREPRORCES):
+            self.preprocess  =  PolarPreprocess()
+        
         # Normalize Ground Truth constelation values
         self.data.Qsym.GroundTruth  = self.data.Qsym.GroundTruth/np.max(np.abs(self.data.Qsym.GroundTruth))
         # Center Ground truth to grid
@@ -161,7 +169,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return out
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.001,weight_decay=.0001)
+        return torch.optim.Adam(self.parameters(),lr=.0001,weight_decay=.0001)
     
     #This function already does normalization 
     def grid_token(self,data,indices):
@@ -210,15 +218,20 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         #Y  = self.ZERO_X(chann,Y)
         
         #Filter batches that are not outliers, borring batches
-        valid_data, valid_indices   = self.filter_z_score(Y,threshold=1.8)
+        valid_data, valid_indices   = self.filter_z_score(Y)
         
         if valid_data.numel() != 0:
             Y = valid_data
             x = x[valid_indices]
-
+            chann = chann[valid_indices]
+            
             if valid_data.dim() == 1:
               Y = torch.unsqueeze(Y, 0)
               x = torch.unsqueeze(x,0)
+              chann = torch.unsqueeze(chann,0)
+            
+            if(PREPRORCES):
+                Y = self.preprocess.PrepareData(chann,Y,self)
             
             # Transform src values to grid tokens 
             src_tokens = self.grid_token(Y,indices=valid_indices).permute(1,0) # [length,batch]
