@@ -30,8 +30,9 @@ from PhaseNet import PhaseEqualizer
 BATCHSIZE  = 10
 QAM        = 16
 INPUT_SIZE = 48
-MAG_PATH   = '/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PolarPreTrained/models/Abs.ckpt'
-ANGLE_PATH = '/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PolarPreTrained/models/Phase.ckpt'
+curr_path  = os.path.dirname(os.path.abspath(__file__))
+MAG_PATH   = curr_path+'/models/Abs.ckpt'
+ANGLE_PATH = curr_path+'/models/Phase.ckpt'
 
 class PolarPreprocess():
     def __init__(self):
