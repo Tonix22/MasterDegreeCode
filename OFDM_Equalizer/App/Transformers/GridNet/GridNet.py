@@ -25,9 +25,9 @@ sys.path.insert(0, PreprocessPath+"NeuronalNet/PolarPreTrained")
 from PolarPreproces import PolarPreprocess
 
 #Hyperparameters
-BATCHSIZE  = 10
+BATCHSIZE  = 100
 QAM        = 16
-NUM_EPOCHS = 25 #50,100,150
+NUM_EPOCHS = 13 #50,100,150
 SNR        = 25
 #
 LAST_LIST   = 250
@@ -41,19 +41,19 @@ LEARNING_RATE = .0001
 
 # Model hyperparameters
 GRID_STEP = 1/8
-GRID = "Square"
+GRID = "Polar"
 #GRID = "Square"
-STEP_RADIUS = 0.2
-STEP_ANGLE  = np.pi/16
+STEP_RADIUS = 0.25
+STEP_ANGLE  = np.pi/6
 PREPRORCES = False
 
 embedding_size = 512
-num_heads      = 8
-num_encoder_layers = 5 # 6
-num_decoder_layers = 5 # 6
-dropout = 0.10
+num_heads      = 128
+num_encoder_layers = 6 # 6
+num_decoder_layers = 6 # 6
+dropout = 0.01
 max_len = 50
-forward_expansion = 2048 # default
+forward_expansion = 4096 # default
 src_pad_idx       = 1
 
 
@@ -169,7 +169,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         return out
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.0001,weight_decay=.0001)
+        return torch.optim.Adam(self.parameters(),lr=.0001)
     
     #This function already does normalization 
     def grid_token(self,data,indices):
@@ -207,8 +207,9 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     def common_step(self,batch,predict = False):
         if(predict == False):
             i = self.current_epoch
-            self.SNR_db = 40  - 5 * (i % 4)
-            #self.SNR_db = 30
+            self.SNR_db = 45  - 5 * (i % 4)
+            #self.SNR_db = 20
+        
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         # Chann Formating
