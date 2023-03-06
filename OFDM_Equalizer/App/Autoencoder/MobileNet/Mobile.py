@@ -23,10 +23,9 @@ from PlotChannel import plot_channel
 from Scatter_plot_results import ComparePlot
 
 #Hyperparameters
-BATCHSIZE  = 40
-NUM_EPOCHS = 9
+BATCHSIZE  = 50
+NUM_EPOCHS = 50
 QAM        = 16
-TARGET     = "normal"
 
 class PredesignedModel(nn.Module):
     def __init__(self, encoded_space_dim):
@@ -93,7 +92,7 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         return m,a
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=0.0007)
+        return torch.optim.Adam(self.parameters(),lr=0.0001)
     
     def common_step(self,batch,predict=False):
         # training_step defines the train loop. It is independent of forward
@@ -101,7 +100,7 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         # ------------ Generate Y ------------
-        self.SNR_db = self.SNR_db if predict else 35
+        self.SNR_db = self.SNR_db if predict else 40
         Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
         # Normalize Y
         #Y     = Y/torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
@@ -114,7 +113,7 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         max_magnitude   = (chann_abs.max() - chann_abs.min())
         chann_abs       = (chann_abs - chann_abs.min()) / max_magnitude
         # Filter magnitud by score
-        valid_data, valid_indices   = self.filter_tensor_by_zscore(chann_abs)
+        valid_data, valid_indices   = self.filter_chann_diag_z_score(chann_abs)
         
         if valid_data.numel() != 0:
             # ------------ Input Data ------------
@@ -132,30 +131,33 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
                             
             # ------------ Normalize x ------------
             tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
-            target         = x/tgt_abs_factor
+            x         = x/tgt_abs_factor
             # ------------ Normalize y ------------
             Y_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
             Y            = Y / Y_abs_factor
             
             # ------------ Model  ------------NUM_EPOCHS
             m,a = self(magnitud,angle)
-            
-            zero_forcing = Y/x
-            target_abs = zero_forcing.abs()
-            target_ang = (zero_forcing.angle()+torch.pi)/(2*torch.pi)
                 
-            #loss eval
-            #loss        = self.loss_f(x,zero_forcing)
-            loss = .5*self.loss_f(m,target_abs)+ \
-                   .5*self.loss_f(a,target_ang)
+            a = (a*torch.pi*2)-torch.pi # normalize angle
+            
+            #Sum Phase of Y with angle estimate and save into a polar representation of radius 1
+            ang_real = torch.cos(a+Y.angle())
+            ang_imag = torch.sin(a+Y.angle())
+            
+            #compare angle complex values
+            target_angle = torch.polar(torch.ones(x.shape).to(torch.float64).to(self.device),torch.angle(x))   
+            
+            loss = .5*self.loss_f(m*Y.abs(),x.abs())+ \
+                   .25*self.loss_f(target_angle.real,ang_real)+.25*self.loss_f(target_angle.imag,ang_imag)
             
             if(predict):
                 # ------------ Network output------------
                 # Denormalize
-                a = a*(2*torch.pi)-torch.pi
-                H = torch.polar(m,a)
+                Y_ang = Y.angle()+a
+                Y_abs = Y.abs()*m
                 # ------------ Zero Forcing------------
-                x_hat = Y/H
+                x_hat = torch.polar(Y_abs,Y_ang)
                 self.SNR_calc(x_hat,x,norm=True)
                 
         else: # block back propagation
@@ -196,14 +198,14 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         loss = 0
-        if(batch_idx < 50):
+        if(batch_idx < 40):
             loss = self.common_step(batch,predict=True)
         return loss
         
 if __name__ == '__main__':
    
-    trainer = Trainer(accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/lightning_logs/version_47/checkpoints/epoch=7-step=2400.ckpt')
+    trainer = Trainer(accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
+                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/lightning_logs/version_80/checkpoints/epoch=49-step=12000.ckpt')
     model   = ZeroForcing(48)
     trainer.fit(model)
     formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"ZeroForceMobileNet",get_time_string())
