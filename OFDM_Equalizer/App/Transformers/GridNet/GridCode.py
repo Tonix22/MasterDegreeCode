@@ -82,7 +82,7 @@ class GridCode():
         colorsMap  = [scalar_map.to_rgba(i) for i in range(vect.size)]
         real = np.real(vect)
         imag = np.imag(vect)
-        
+            
         #fig, ax2 = plt.subplots()
         ax.scatter(real, imag,s=10, c=colorsMap,marker='*')
         for i, txt in enumerate(range(vect.size)):
@@ -98,11 +98,34 @@ class GridCode():
         ax.axhline(y=0, color='k')
         ax.axvline(x=0, color='k')
         ax.set_title(title)
+        
+    def plot_grid_values(self,ax):
+        # plot grid with grid number starting from 4
+        grid_num = 4
+        for x in self.binsx:
+            for y in self.binsy:
+                ax.text(x+self.step/2, y+self.step/2, str(grid_num), fontsize=8, ha='center', va='center')
+                grid_num += 1
+        ax.grid(True)
+        ax.set_xticks(self.binsx)
+        ax.set_yticks(self.binsy)
+        #plot title
+        ax.set_xlabel('Real Part')
+        ax.set_ylabel('Imaginary Part')
+        #x2-y axis line
+        ax.axhline(y=0, color='k')
+        ax.axvline(x=0, color='k')
+        ax.set_title("Grid Encoding")
 
-"""
+
 coding = GridCode(1/7)
 
 fig =  plt.subplots()
+ax1  = plt.subplot2grid((1, 1), (0, 0))
+
+coding.plot_grid_values(ax1)
+plt.show()
+"""
 ax1  = plt.subplot2grid((1, 2), (0, 0))
 ax2  = plt.subplot2grid((1, 2), (0, 1))
 # Ground truth
@@ -116,8 +139,10 @@ values    = values/np.max(np.abs(values))
 
 coding.plot_scatter_values(ax1,rx.Qsym.GroundTruth[:10,10],"Truth")
 coding.plot_scatter_values(ax2,values[:10],"Centered")
-"""
+plt.show()
 
+"""
+"""
 #rx.Qsym.QAM_norm_arr = coding.Decode(coding.Encode(rx.Qsym.QAM_norm_arr )).numpy()
 #coding.plot_scatter_values(ax1,rx.Qsym.QAM_norm_arr,"QAM")
 
@@ -131,3 +156,4 @@ coding.plot_scatter_values(ax2,values[:10],"Centered")
 #plot_scatter_values(ax2,data_decoded[0][:10].numpy(),"Decoded",coding.binsx,coding.binsy)
 
 #plt.show()
+"""
