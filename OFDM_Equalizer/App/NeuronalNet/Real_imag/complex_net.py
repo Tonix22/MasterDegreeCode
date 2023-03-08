@@ -10,9 +10,6 @@ from pytorch_lightning.callbacks import TQDMProgressBar
 import math
 import warnings
 import numpy as np
-from complexPyTorch.complexLayers import ComplexLinear, ComplexConv2d, ComplexConvTranspose2d,ComplexBatchNorm2d
-from complexPyTorch.complexFunctions import complex_relu, complex_max_pool2d
-from torch.nn.functional import tanh ,hardtanh
 
 warnings.filterwarnings("ignore", category=UserWarning)
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../../../"
@@ -22,9 +19,10 @@ from Recieved import RX,Rx_loader
 from utils import vector_to_pandas, get_time_string
 
 #Hyperparameters
-BATCHSIZE  = 20
+BATCHSIZE  = 50
 QAM        = 16
-NUM_EPOCHS = 150
+NUM_EPOCHS = 100
+LEARNING_RATE = .00001
 #
 LAST_LIST   = 250
 CONJ_ACTIVE = True
@@ -33,15 +31,26 @@ GROUND_TRUTH_SOFT = False # fts
 NOISE = False
 #NN parameters
 INPUT_SIZE  = 48
-HIDDEN_SIZE = 72 
+HIDDEN_SIZE = 120
 
-#Optimizer
-LEARNING_RATE = .001
-EPSILON = .01
+
 
 def complex_tanh(input):
     return torch.tanh(input.real).type(torch.complex64)+1j*torch.tanh(input.imag).type(torch.complex64)
 
+def apply_complex(fr, fi, input, dtype = torch.complex128):
+    return (fr(input.real)-fi(input.imag)).type(dtype) \
+            + 1j*(fr(input.imag)+fi(input.real)).type(dtype)
+
+class ComplexLinear(nn.Module):
+    
+    def __init__(self, in_features, out_features):
+        super(ComplexLinear, self).__init__()
+        self.fc_r = nn.Linear(in_features, out_features)
+        self.fc_i = nn.Linear(in_features, out_features)
+
+    def forward(self, input):
+        return apply_complex(self.fc_r, self.fc_i, input)
 
 class HardTahn_complex(nn.Module):
 
@@ -61,77 +70,82 @@ class ComplexNet(pl.LightningModule,Rx_loader):
         self.complex_net = nn.Sequential(
             ComplexLinear(input_size, hidden_size),
             HardTahn_complex(),
-            ComplexLinear(hidden_size, hidden_size*int(1.5)),
-            HardTahn_complex(),
-            ComplexLinear(hidden_size*int(1.5), hidden_size),
+            ComplexLinear(hidden_size, hidden_size*int(2)),
+            ComplexLinear(hidden_size*int(2), hidden_size),
             HardTahn_complex(),
             ComplexLinear(hidden_size, input_size)
         ).double()
-        #self.loss_f = nn.MSELoss()
-        self.loss_f = self.Complex_MSE
+        #self.loss_f = self.Complex_MSE
+        self.loss_f = self.Polar_MSE
         
     def Complex_MSE(self,output,target):
-        return torch.sum(torch.abs((target-output)))
+        return torch.mean(torch.abs((target-output)))
+
+    def Polar_MSE(self,output,target):
+        return .5*torch.mean((torch.square(torch.log(torch.abs(target)/torch.abs(output)))\
+            +torch.square(torch.angle(target)-torch.angle(output))))
         
     def forward(self,x):        
         return self.complex_net(x)
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=.0007,eps=.007)
-        
-    def training_step(self, batch, batch_idx):
-        #self.SNR_db = ((40-self.current_epoch*10)%41)+5
+        return torch.optim.Adam(self.parameters(),lr=LEARNING_RATE)
+    
+    def common_step(self,batch,predict=False):
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         #chann preparation
         chann = chann.permute(0,3,1,2)
-        #chann preparationAnglePhaseNet
-        Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=NOISE)
         
-        # ------------ Source Data ------------
-        #normalize factor, normalize by batch
-        src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
-        src        = Y / src_abs_factor
+        if(predict == False):
+            self.SNR_db = 40
+            
+        Y  = self.Get_Y(chann,x,conj=True,noise_activ=True)
+                
+        #Filter batches that are not outliers, borring batches
+        valid_data, valid_indices   = self.filter_z_score(Y)
+        if valid_data.numel() != 0:
+            Y = valid_data
+            x = x[valid_indices]
+            
+            if valid_data.dim() == 1:
+                Y = torch.unsqueeze(Y, 0)
+                x = torch.unsqueeze(x,0)
+            
+            # ------------ Source Data Preprocesing ------------
+            #normalize factor, normalize by batch
+            Y_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
+            Y            = Y / Y_abs_factor
         
-        # ------------ Target Data ------------
-        #Normalize target 
-        tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
-        tgt            = x/tgt_abs_factor
-        
-        # ------------ Model Eval ------------
-        output = self(src)
-        
-        #loss func
-        loss  = self.loss_f(output,tgt)
+            # ------------ Target Data Preprocesing------------
+            #Normalize target
+            
+            tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
+            target         = x/tgt_abs_factor
+            
+            # model eval
+            x_hat = self(Y)
+            
+            # Complex build
+            loss  = self.loss_f(x_hat,target)
+            
+            if(predict == True):
+                self.SNR_calc(x_hat,target,norm=True) 
+            
+        else: # block back propagation
+            loss = torch.tensor([0.0],requires_grad=True).to(torch.float64).to(self.device)
+            
+        return loss
+    
+    def training_step(self, batch, batch_idx):
+        loss = self.common_step(batch)
         
         #self.log('SNR', self.SNR_db, on_step=False, on_epoch=True, prog_bar=True, logger=False)
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
     def validation_step(self, batch, batch_idx):
-        #self.SNR_db = ((40-self.current_epoch*10)%41)+5
-        # training_step defines the train loop. It is independent of forward
-        chann, x = batch
-        #chann preparation
-        chann = chann.permute(0,3,1,2)
-        #chann preparationAnglePhaseNet
-        Y     = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=NOISE)
-        
-        # ------------ Source Data ------------
-        #normalize factor, normalize by batch
-        src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
-        src        = Y / src_abs_factor
-        
-        # ------------ Target Data ------------
-        #Normalize target 
-        tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
-        tgt            = x/tgt_abs_factor
-        
-        # ------------ Model Eval ------------
-        output = self(src)
-        
-        #loss func
-        loss  = self.loss_f(output,tgt)
+        loss = self.common_step(batch)
         
         self.log('val_loss', loss) #tensorboard logs
         return {'val_loss':loss}
@@ -143,39 +157,7 @@ class ComplexNet(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         if(batch_idx < 200):
-            chann, x = batch
-            chann    = chann.permute(0,3,1,2)
-            Y        = self.Get_Y(chann,x,conj=CONJ_ACTIVE,noise_activ=True)
-            
-            
-            # ------------ Source Data ------------
-            #normalize factor, normalize by batch
-            src_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
-            src            = Y / src_abs_factor
-            
-            # ------------ Target Data ------------
-            #Normalize target 
-            tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
-            tgt            = x/tgt_abs_factor
-            # ------------ Model Eval ------------
-            #normalize factor, normalize by batch            
-           
-            out = self(src)
-            # ------------ Predict Loss ------------
-            # ------------ Concatenate ------------
-            loss  = self.loss_f(out,tgt)
-            # ------------ Denormalize ------------
-            #denormalize angle          
-            # ------------ Polar trans ------------
-            #transform output to polar
-            x_hat    = out
-            x_t      = tgt
-            
-            x_hat = x_hat.cpu().to(torch.float32)
-            x_t   = x_t.cpu().to(torch.float32)
-            #torch polar polar(abs: Tensor, angle: Tensor)
-           
-            self.SNR_calc(x_hat,x_t,norm=True) 
+            self.common_step(batch,predict=True)
             
         return 0 
     
@@ -190,8 +172,8 @@ class ComplexNet(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/Real_imag/lightning_logs/version_12/checkpoints/epoch=149-step=90000.ckpt')
+    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/Real_imag/lightning_logs/version_25/checkpoints/epoch=19-step=4800.ckpt')
     Cn = ComplexNet(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
