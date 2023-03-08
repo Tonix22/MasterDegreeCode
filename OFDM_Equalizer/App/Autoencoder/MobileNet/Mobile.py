@@ -23,8 +23,9 @@ from PlotChannel import plot_channel
 from Scatter_plot_results import ComparePlot
 
 #Hyperparameters
-BATCHSIZE  = 50
-NUM_EPOCHS = 50
+BATCHSIZE     = 50
+NUM_EPOCHS    = 50
+LEARNING_RATE = 0.0001
 QAM        = 16
 
 class PredesignedModel(nn.Module):
@@ -92,7 +93,7 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         return m,a
     
     def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=0.0001)
+        return torch.optim.Adam(self.parameters(),lr=LEARNING_RATE)
     
     def common_step(self,batch,predict=False):
         # training_step defines the train loop. It is independent of forward
@@ -100,7 +101,7 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         # ------------ Generate Y ------------
-        self.SNR_db = self.SNR_db if predict else 40
+        self.SNR_db = self.SNR_db if predict else 30
         Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
         # Normalize Y
         #Y     = Y/torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
@@ -204,9 +205,10 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         
 if __name__ == '__main__':
    
-    trainer = Trainer(accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/lightning_logs/version_80/checkpoints/epoch=49-step=12000.ckpt')
+    trainer = Trainer(accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/models/version_77/checkpoints/epoch=399-step=96000.ckpt')
     model   = ZeroForcing(48)
+    print(model)
     trainer.fit(model)
     formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"ZeroForceMobileNet",get_time_string())
     model.SNR_BER_TEST(trainer,formating)
