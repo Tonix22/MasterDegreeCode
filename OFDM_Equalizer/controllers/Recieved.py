@@ -257,7 +257,7 @@ class Rx_loader(object):
         # Return the filtered tensor
         return valid_data,indices
             
-    def filter_tensor_by_zscore(self,batch_tensor, threshold=9):
+    def filter_chann_diag_z_score(self,batch_tensor, threshold=9):
         # Compute the mean and standard deviation of each batch
         mean = torch.mean(batch_tensor, dim=[1, 2], keepdim=True)
         std = torch.std(batch_tensor, dim=[1, 2], keepdim=True)
