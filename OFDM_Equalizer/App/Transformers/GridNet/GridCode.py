@@ -117,15 +117,15 @@ class GridCode():
         ax.axvline(x=0, color='k')
         ax.set_title("Grid Encoding")
 
-
+"""
 coding = GridCode(1/7)
 
 fig =  plt.subplots()
-ax1  = plt.subplot2grid((1, 1), (0, 0))
+# Plot grid numbers
+#ax1  = plt.subplot2grid((1, 1), (0, 0))
+#coding.plot_grid_values(ax1)
+#plt.show()
 
-coding.plot_grid_values(ax1)
-plt.show()
-"""
 ax1  = plt.subplot2grid((1, 2), (0, 0))
 ax2  = plt.subplot2grid((1, 2), (0, 1))
 # Ground truth
@@ -136,13 +136,14 @@ rx.Qsym.GroundTruth = coding.Decode(coding.Encode(rx.Qsym.GroundTruth)).numpy()
 values    = rx.H[:,:,6063] @ rx.Qsym.GroundTruth[:,10]
 values    = np.array(np.matrix(rx.H[:,:,10]).H@values)
 values    = values/np.max(np.abs(values))
+devalues  = coding.Decode(coding.Encode(values)).numpy()
 
-coding.plot_scatter_values(ax1,rx.Qsym.GroundTruth[:10,10],"Truth")
-coding.plot_scatter_values(ax2,values[:10],"Centered")
+coding.plot_scatter_values(ax1,values[:10],"Truth")
+coding.plot_scatter_values(ax2,devalues[:10],"Centered")
 plt.show()
 
-"""
-"""
+
+
 #rx.Qsym.QAM_norm_arr = coding.Decode(coding.Encode(rx.Qsym.QAM_norm_arr )).numpy()
 #coding.plot_scatter_values(ax1,rx.Qsym.QAM_norm_arr,"QAM")
 

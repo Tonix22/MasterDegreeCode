@@ -99,15 +99,42 @@ class PolarGridCode():
         ax.set_xlabel('Angle')
         ax.set_ylabel('Radius')
 
+    def plot_grid_values(self, ax):
+        # Plot the indices for each bin in the polar coordinate system
+        grid_num = 4
+        for i in range(len(self.binsr) - 1):
+            for j in range(len(self.binsa) - 1):
+                r = (self.binsr[i] + self.binsr[i + 1]) / 2
+                a = (self.binsa[j] + self.binsa[j + 1]) / 2
+                ax.text(a, r, str(grid_num), fontsize=8, ha='center', va='center')
+                grid_num += 1
 
+        # Set the tick values for the radius and angle coordinates
+        r_ticks = self.binsr
+        a_ticks = (self.binsa + torch.pi)
+        ax.set_rticks(r_ticks)
+        ax.set_thetagrids(a_ticks * 180 / np.pi)
+
+        # Set the plot limits
+        ax.set_rlim(0, 1)
+        ax.set_ylim(0, 1)
+
+        # Plot title and labels
+        ax.set_title("Grid Encoding")
+        ax.set_xlabel('Angle')
+        ax.set_ylabel('Radius')
 
 """
 # Define the step sizes for binning
-step_radius = 0.2
-step_angle = np.pi/16
+step_radius = 0.25
+step_angle = np.pi/6
 
 # Create an instance of the PolarGridCode class
 coding = PolarGridCode(step_radius, step_angle)
+#fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+#coding.plot_grid_values(ax)
+#plt.show()
+
 
 # Generate some random complex data
 data = np.random.rand(10) * np.exp(1j * np.random.rand(10) * 2 * np.pi)

@@ -6,6 +6,7 @@
     "configurations": [
 
 
+
         {
             "name": "Python: Current File",
             "type": "python",
@@ -13,7 +14,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": ["MSE"],
-            "justMyCode": true
+            "justMyCode": false
         }
     ]
 }
