@@ -24,7 +24,7 @@ from Scatter_plot_results import ComparePlot
 
 #Hyperparameters
 BATCHSIZE     = 50
-NUM_EPOCHS    = 50
+NUM_EPOCHS    = 400
 LEARNING_RATE = 0.0001
 QAM        = 16
 
@@ -129,7 +129,9 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
                 Y     = torch.unsqueeze(Y, 0)
                 chann = torch.unsqueeze(chann,0)
                 x     = torch.unsqueeze(x,0)
-                            
+            
+            self.start_clock() #start time eval ***************
+            
             # ------------ Normalize x ------------
             tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
             x         = x/tgt_abs_factor
@@ -145,6 +147,8 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
             #Sum Phase of Y with angle estimate and save into a polar representation of radius 1
             ang_real = torch.cos(a+Y.angle())
             ang_imag = torch.sin(a+Y.angle())
+            
+            self.stop_clock(int(Y.shape[0])) #Stop time eval ***************
             
             #compare angle complex values
             target_angle = torch.polar(torch.ones(x.shape).to(torch.float64).to(self.device),torch.angle(x))   
@@ -205,10 +209,9 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         
 if __name__ == '__main__':
    
-    trainer = Trainer(accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/models/version_77/checkpoints/epoch=399-step=96000.ckpt')
+    trainer = Trainer(accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
+                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/models/version_77/checkpoints/epoch=399-step=96000.ckpt')
     model   = ZeroForcing(48)
-    print(model)
     trainer.fit(model)
     formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"ZeroForceMobileNet",get_time_string())
     model.SNR_BER_TEST(trainer,formating)
