@@ -22,13 +22,13 @@ import torch.optim.lr_scheduler as lr_scheduler
 
 #Hyperparameters
 BATCHSIZE  = 10
-QAM        = 16
+QAM        = 4
 NUM_EPOCHS = 2
 #NN parameters
 INPUT_SIZE  = 48
 HIDDEN_SIZE = 240 #48*1.5
 #Optimizer
-LEARNING_RATE = 8e-5 # 16 QAM 8e-5, 4QAM 4e-5
+LEARNING_RATE = 7e-5 # 16 QAM 8e-5, 4QAM 4e-5
 CONJ = True
 
 class PhaseEqualizer(nn.Module):
@@ -70,7 +70,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
     
     def common_step(self,batch,predict = False):
         if(predict == False):
-            self.SNR_db = 35
+            self.SNR_db = 40 - 5 * (self.current_epoch % 2)
             #i = self.current_epoch
             #self.SNR_db = 35 - 5 * (i % 5)
         # training_step defines the train loop. It is independent of forward
@@ -78,25 +78,31 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         #Multiply X by the channel            
-        if(predict == True):
-            Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
-        else:
-            Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
+
+        Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
         
-        if(CONJ == False):
-            Y     = self.ZERO_X(chann,Y)
         
         #Filter batches that are not outliers, borring batches
+
         valid_data, valid_indices   = self.filter_z_score(Y)
+            
         if valid_data.numel() != 0:
             #normalize angle
             Y = valid_data
             src_ang = (torch.angle(Y)) / (2 * np.pi)
             
+            
+            self.start_clock() #start time eval
             #model eval
             out_ang  = self(src_ang)
+            #model End
+            self.stop_clock(int(Y.shape[0])) #end time eval
+            
             out_real = torch.cos(out_ang*torch.pi*2)
             out_imag = torch.sin(out_ang*torch.pi*2)
+           
+            
+            
             # Unitary magnitud imaginary, only matters angle
             x = x[valid_indices]
             target     = torch.polar(torch.ones(x.shape).to(torch.float64).to(self.device),torch.angle(x))    
@@ -152,7 +158,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
                 #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PhaseNet/lightning_logs/version_91/checkpoints/epoch=3-step=4800.ckpt')
     Cn = PhaseNet(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
