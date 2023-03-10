@@ -30,12 +30,6 @@ LAST_LIST   = 250
 GROUND_TRUTH_SOFT = False # fts
 PREPRORCES = False
 
-#Hyperparameters
-BATCHSIZE  = 100
-QAM        = 16
-NUM_EPOCHS = 13 #50,100,150
-SNR        = 25
-
 CONJ_ACTIVE = True
 
 NOISE = True
@@ -49,6 +43,13 @@ GRID_STEP = 1/7
 GRID = "Square"
 STEP_RADIUS = 0.25
 STEP_ANGLE  = np.pi/6
+
+
+#Hyperparameters
+BATCHSIZE  = 100
+QAM        = 16
+NUM_EPOCHS = 24 if GRID == "Square" else 12 #50,100,150
+SNR        = 25
 
 
 embedding_size = 512
@@ -252,6 +253,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
             target = tgt_tokens[1:].reshape(-1)
             loss   = self.loss_f(output,target)
             
+            
         else: # block back propagation
             loss = torch.tensor([0.0],requires_grad=True).to(torch.float64).to(self.device)
         
@@ -279,7 +281,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         #Filter batches that are not outliers, borring batches
-        if(batch_idx < 10 ):
+        if(batch_idx < 20 ):
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             # Chann Formating
@@ -296,6 +298,8 @@ class GridTransformer(pl.LightningModule,Rx_loader):
                 if valid_data.dim() == 1:
                     Y = torch.unsqueeze(Y, 0)
                     x = torch.unsqueeze(x,0)
+                
+                self.start_clock() #start time eval ***************
                 
                 # Transform src values to grid tokens 
                 src_tokens = self.grid_token(Y,indices=valid_indices).permute(1,0)  # [length,batch]
@@ -319,8 +323,13 @@ class GridTransformer(pl.LightningModule,Rx_loader):
                 #degrid bits
                 
                 x_hat = self.grid_decode(x_hat)
+                
+                self.stop_clock(int(Y.shape[0])) #Stop time eval ***************
+                
                 #x_hat = self.ZERO_X(chann,x_hat) # zero forcing after clean up
                 x     = self.grid_decode(tgt_tokens[1:-1].permute(1,0))
+                
+                
                 self.BER_cal(x_hat,x,norm=True) 
                 
         return 0 
@@ -336,7 +345,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
                 #resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_2/checkpoints/epoch=32-step=3960.ckpt')
     tf = GridTransformer(
     embedding_size,
