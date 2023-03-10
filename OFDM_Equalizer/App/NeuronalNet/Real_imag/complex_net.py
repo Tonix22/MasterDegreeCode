@@ -130,7 +130,7 @@ class ComplexNet(pl.LightningModule,Rx_loader):
             loss  = self.loss_f(x_hat,target)
             
             if(predict == True):
-                self.SNR_calc(x_hat,target,norm=True) 
+                self.BER_cal(x_hat,target,norm=True) 
             
         else: # block back propagation
             loss = torch.tensor([0.0],requires_grad=True).to(torch.float64).to(self.device)

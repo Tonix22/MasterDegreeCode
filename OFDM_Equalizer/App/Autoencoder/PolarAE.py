@@ -84,7 +84,7 @@ class PolarAE(pl.LightningModule,Rx_loader):
             
             x_hat = Y/z #ZERO FORCING equalizer
         
-            self.SNR_calc(x_hat,x,norm=False) 
+            self.BER_cal(x_hat,x,norm=False) 
             
         return 0 
             

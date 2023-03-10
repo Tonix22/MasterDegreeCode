@@ -159,7 +159,7 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
                 Y_abs = Y.abs()*m
                 # ------------ Zero Forcing------------
                 x_hat = torch.polar(Y_abs,Y_ang)
-                self.SNR_calc(x_hat,x,norm=True)
+                self.BER_cal(x_hat,x,norm=True)
                 
         else: # block back propagation
             loss = torch.tensor([0.0],requires_grad=True).to(torch.float64).to(self.device)

@@ -70,7 +70,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
     
     def common_step(self,batch,predict = False):
         if(predict == False):
-            self.SNR_db = 40
+            self.SNR_db = 35
             #i = self.current_epoch
             #self.SNR_db = 35 - 5 * (i % 5)
         # training_step defines the train loop. It is independent of forward
@@ -101,12 +101,6 @@ class PhaseNet(pl.LightningModule,Rx_loader):
             x = x[valid_indices]
             target     = torch.polar(torch.ones(x.shape).to(torch.float64).to(self.device),torch.angle(x))    
 
-            #output = torch.stack((out_real,out_imag),dim=-1)
-            #tgt    = torch.stack((target.real,target.imag),dim=-1)
-            
-            #loss func
-            #loss  = self.loss_f(target.real,target.imag,out_real,out_imag)
-            #loss  = self.loss_f(tgt,output)
             loss = .5*self.loss_f(target.real,out_real)+.5*self.loss_f(target.imag,out_imag)
         
             if(predict == True):
@@ -114,7 +108,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
                 x_hat    = torch.complex(out_real,out_imag)
             
                 #ComparePlot(x,x_hat)
-                self.SNR_calc(x_hat,target)
+                self.BER_cal(x_hat,target)
         
         else: # block back propagation
             loss = torch.tensor([0.0],requires_grad=True).to(torch.float64).to(self.device)
@@ -143,7 +137,7 @@ class PhaseNet(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         loss = 0
-        if(batch_idx < 200):
+        if(batch_idx < 400):
             loss = self.common_step(batch,predict = True)
         return loss 
     
