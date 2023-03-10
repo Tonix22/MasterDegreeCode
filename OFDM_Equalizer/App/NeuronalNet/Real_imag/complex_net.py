@@ -21,8 +21,8 @@ from utils import vector_to_pandas, get_time_string
 #Hyperparameters
 BATCHSIZE  = 50
 QAM        = 16
-NUM_EPOCHS = 100
-LEARNING_RATE = .00001
+NUM_EPOCHS = 50
+LEARNING_RATE = .0001
 #
 LAST_LIST   = 250
 CONJ_ACTIVE = True
@@ -75,8 +75,8 @@ class ComplexNet(pl.LightningModule,Rx_loader):
             HardTahn_complex(),
             ComplexLinear(hidden_size, input_size)
         ).double()
-        #self.loss_f = self.Complex_MSE
-        self.loss_f = self.Polar_MSE
+        self.loss_f = self.Complex_MSE
+        #self.loss_f = self.Polar_MSE
         
     def Complex_MSE(self,output,target):
         return torch.mean(torch.abs((target-output)))
@@ -112,6 +112,8 @@ class ComplexNet(pl.LightningModule,Rx_loader):
                 Y = torch.unsqueeze(Y, 0)
                 x = torch.unsqueeze(x,0)
             
+            self.start_clock() #start time eval ***************
+            
             # ------------ Source Data Preprocesing ------------
             #normalize factor, normalize by batch
             Y_abs_factor = torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
@@ -125,6 +127,8 @@ class ComplexNet(pl.LightningModule,Rx_loader):
             
             # model eval
             x_hat = self(Y)
+            
+            self.stop_clock(int(Y.shape[0])) #Stop time eval ***************
             
             # Complex build
             loss  = self.loss_f(x_hat,target)
@@ -173,7 +177,7 @@ class ComplexNet(pl.LightningModule,Rx_loader):
 if __name__ == '__main__':
     
     trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/Real_imag/lightning_logs/version_25/checkpoints/epoch=19-step=4800.ckpt')
+                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/Real_imag/lightning_logs/version_41/checkpoints/epoch=199-step=48000.ckpt')
     Cn = ComplexNet(INPUT_SIZE,HIDDEN_SIZE)
     trainer.fit(Cn)
     
