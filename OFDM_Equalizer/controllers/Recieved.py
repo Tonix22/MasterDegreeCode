@@ -8,6 +8,8 @@ from math import sqrt
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader, random_split
+import crcmod.predefined
+import time
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
 sys.path.insert(0, main_path+"tools")
@@ -111,9 +113,19 @@ class Rx_loader(object):
         self.errors   = 0  #Errror per bit
         self.bits_num = 0  # Total number of bits
         self.BER_list = []
+        self.crc_func = crcmod.predefined.mkCrcFun('crc-16')
+        self.bad_block = 0
+        self.BLER      = 0 # Block erro rate
+        self.total_blocks = 0
+        self.BLER_list = []
+        #for average time
+        self.frame = 0
+        self.avg_time = 0
+        self.chunk_time = 0
     
     #for internal use in the predict section of lightning
-    def SNR_calc(self,x_hat,x,norm=False):
+    def BER_cal(self,x_hat,x,norm=False):
+        
         for n in range(x_hat.shape[0]):
             rx     = x_hat[n].cpu().detach().numpy()
             rxbits = self.data.Qsym.Demod(rx,norm=norm)
@@ -123,26 +135,47 @@ class Rx_loader(object):
             txbits = self.data.Qsym.Demod(x[n].cpu().detach().numpy(),norm=norm)
             txbits = np.unpackbits(np.expand_dims(txbits.astype(np.uint8),axis=1),axis=1)
             txbits = txbits[:,-self.data.bitsframe:]
-            
             self.errors+=np.sum(rxbits!=txbits)
             self.bits_num+=(rxbits.size)
-        
+            
+            #Block ERROR RATE
+            tx_crc = self.crc_func(txbits.tobytes())
+            rx_crc = self.crc_func(rxbits.tobytes())
+            # Check if the Blocks are equal
+            if(tx_crc != rx_crc):
+                self.bad_block +=1
+                
+        self.total_blocks+= float(x_hat.shape[0])
         #calculate BER
-        self.BER = self.errors/self.bits_num
+        self.BER  = self.errors/self.bits_num
+        self.BLER = self.bad_block/self.total_blocks
+            
     
     #this is call by final API  
     def SNR_BER_TEST(self,trainer,csv_name):
         
         for n in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,GOLDEN_STEP*-1):
-            self.errors   = 0
-            self.BER      = 0
-            self.bits_num = 0
-            self.SNR_db   = n 
+            self.errors       = 0
+            self.BER          = 0
+            self.bad_block    = 0
+            self.BLER         = 0
+            self.bits_num     = 0
+            self.total_blocks = 0
+            self.SNR_db       = n 
+            
             trainer.predict(self)
+            
+            self.BLER_list.append(self.BLER)
             self.BER_list.append(self.BER)
-            print("SNR:{} BER:{}".format(self.SNR_db,self.BER))
+            if(self.SNR_db == 5):
+                print("SNR:{} BER:{} BLER:{} avg_time:{:.2e}".format(self.SNR_db,self.BER,self.BLER,self.avg_time))
+                print("avg_time:{:.2e}".format(self.avg_time), file=open("./TimeLog/time_{}.log".format(csv_name), "w"))
+            else:
+                print("SNR:{} BER:{} BLER:{}".format(self.SNR_db,self.BER,self.BLER))
         
         vector_to_pandas("BER_{}.csv".format(csv_name),self.BER_list,path="./BER_csv")
+        vector_to_pandas("BLER_{}.csv".format(csv_name),self.BLER_list,path="./BLER_csv")
+        
             
     def Get_Y(self,H,x,conj=False,noise_activ = True):
         Y = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
@@ -177,11 +210,11 @@ class Rx_loader(object):
         x_lmse = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
         for i in range(chann.shape[0]):
             H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
-            H_H = H.conj().resolve_conj().T
             #Signal power 
             Ps = torch.mean(torch.abs(Y)**2)
             # Noise power
             Pn = Ps / (10**(self.SNR_db/10))
+            H_H = H.conj().resolve_conj().T
             x_lmse[i] = torch.linalg.inv(H_H@H+torch.eye(48).to(self.device)*Pn)@H_H@Y[i]
         return x_lmse
     
@@ -279,4 +312,17 @@ class Rx_loader(object):
         
         # Return the filtered tensor
         return valid_data,indices
+    
+    def start_clock(self):
+                
+        if(self.SNR_db <= 15):
+            self.frame = 0
+            self.start_time = time.time() #init time stamp
 
+    def stop_clock(self,blocks):
+        if(self.SNR_db <= 15):
+            end_time = time.time() # stop watch
+            execution_time = (end_time - self.start_time)/blocks #exec 
+            self.chunk_time += execution_time
+            self.frame +=1
+            self.avg_time = self.chunk_time/self.frame
