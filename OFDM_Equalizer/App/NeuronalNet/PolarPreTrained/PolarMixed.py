@@ -31,7 +31,7 @@ BATCHSIZE  = 10
 QAM        = 16
 INPUT_SIZE = 48
 MAG_PATH   = '/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/MagNet/lightning_logs/version_30/checkpoints/epoch=9-step=12000.ckpt'
-ANGLE_PATH = '/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PhaseNet/lightning_logs/version_149/checkpoints/epoch=1-step=2400.ckpt'
+ANGLE_PATH = '/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/NeuronalNet/PhaseNet/models/16QAM/version_138/checkpoints/epoch=1-step=2400.ckpt'
 
 class PolarMixed(pl.LightningModule,Rx_loader):
     def __init__(self):
@@ -41,7 +41,7 @@ class PolarMixed(pl.LightningModule,Rx_loader):
         self.mag_net   = MagEqualizer(INPUT_SIZE,120)
         self.angle_net = PhaseEqualizer(INPUT_SIZE,240)
         #load 
-        state = torch.load(MAG_PATH)['state_dict']
+        state = torch.load(MAG_PATH,map_location=torch.device('cpu'))['state_dict']
         new_state_dict = {}
         for key, value in state.items():
             new_key = key.replace('mag_net.mag_net.', 'mag_net.')
@@ -49,7 +49,7 @@ class PolarMixed(pl.LightningModule,Rx_loader):
             
         self.mag_net.load_state_dict(new_state_dict)
         
-        state = torch.load(ANGLE_PATH)['state_dict']
+        state = torch.load(ANGLE_PATH,map_location=torch.device('cpu'))['state_dict']
         new_state_dict = {}
         for key, value in state.items():
             new_key = key.replace('angle_net.angle_net.', 'angle_net.')
@@ -83,6 +83,8 @@ class PolarMixed(pl.LightningModule,Rx_loader):
                 x = torch.unsqueeze(x,0)
                 chann = torch.unsqueeze(chann,0)
             
+            self.start_clock() #start time eval ***************
+            
             # ------------ Source Data Preprocesing ------------
             # ANGLE
             Y_ang        = (torch.angle(Y)) / (2 * torch.pi)
@@ -98,13 +100,15 @@ class PolarMixed(pl.LightningModule,Rx_loader):
             
             x_hat     = torch.polar(output_abs,output_angle)
             
+            self.stop_clock(int(Y.shape[0])) #Stop time eval ***************
+            
             # ------------ Target Data Preprocesing------------
             #Normalize target
             
             tgt_abs_factor = torch.max(torch.abs(x),dim=1, keepdim=True)[0]
             target         = x/tgt_abs_factor
                 
-            self.SNR_calc(x_hat,target,norm=True) 
+            self.BER_cal(x_hat,target,norm=True) 
             
         return 0
     
