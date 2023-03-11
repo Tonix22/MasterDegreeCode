@@ -48,15 +48,15 @@ STEP_ANGLE  = np.pi/6
 #Hyperparameters
 BATCHSIZE  = 100
 QAM        = 16
-NUM_EPOCHS = 24 if GRID == "Square" else 12 #50,100,150
+NUM_EPOCHS = 25 if GRID == "Square" else 12 #50,100,150
 SNR        = 25
 
 
 embedding_size = 512
 num_heads      = 8 if GRID == "Square" else 128
-num_encoder_layers = 6 # 6
-num_decoder_layers = 6 # 6
-dropout = 0.01
+num_encoder_layers = 5 if GRID == "Square" else 6# 6
+num_decoder_layers = 5 if GRID == "Square" else 6# 6
+dropout = 0.10 if GRID == "Square" else 0.01
 max_len = 50
 forward_expansion = 2048 if GRID == "Square" else 4096
 src_pad_idx       = 1
@@ -212,7 +212,10 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     def common_step(self,batch,predict = False):
         if(predict == False):
             i = self.current_epoch
-            self.SNR_db = 45  - 5 * (i % 4)
+            if GRID == "Square":
+              self.SNR_db = 35
+            else:
+              self.SNR_db = 45  - 5 * (i % 4)
             #self.SNR_db = 20
         
         # training_step defines the train loop. It is independent of forward
@@ -281,7 +284,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
     def predict_step(self, batch, batch_idx):
         #Filter batches that are not outliers, borring batches
-        if(batch_idx < 20 ):
+        if(batch_idx < 10 ):
             # training_step defines the train loop. It is independent of forward
             chann, x = batch
             # Chann Formating
@@ -345,7 +348,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
                 #resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_2/checkpoints/epoch=32-step=3960.ckpt')
     tf = GridTransformer(
     embedding_size,
