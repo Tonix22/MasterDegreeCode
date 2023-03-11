@@ -173,8 +173,11 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         
         return out
     
-    def configure_optimizers(self): 
-        return torch.optim.Adam(self.parameters(),lr=LEARNING_RATE)
+    def configure_optimizers(self):
+        if GRID == "Square":
+            return torch.optim.Adam(self.parameters(),lr=.001,weight_decay=1e-4)
+        else:
+            return torch.optim.Adam(self.parameters(),lr=LEARNING_RATE)
     
     #This function already does normalization 
     def grid_token(self,data,indices):
@@ -213,7 +216,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         if(predict == False):
             i = self.current_epoch
             if GRID == "Square":
-              self.SNR_db = 35
+              self.SNR_db = 45  - 5 * (i % 5)
             else:
               self.SNR_db = 45  - 5 * (i % 4)
             #self.SNR_db = 20
