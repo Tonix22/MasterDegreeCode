@@ -1,4 +1,4 @@
-folder = 'Data';  % You specify this!
+folder = '../Data';  % You specify this!
 addpath(folder)  
 
 fullMatFileName = fullfile(folder,  'v2v80211p_LOS.mat');
