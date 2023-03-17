@@ -23,7 +23,7 @@ def get_time_string():
     mn   = current_time.time().minute
     return "-{}_{}_{}-{}_{}".format(day,mon,year,hr,mn)
 
-def read_plot_pandas(BER_list,labels,title=""):
+def read_plot_pandas(BER_list,labels,title="",BER_BLER = 'BER'):
     indexValues = np.arange(GOLDEN_WORST_SNR,GOLDEN_BEST_SNR+1,GOLDEN_STEP)
     index = 0
     for BER_it in BER_list:
@@ -37,12 +37,12 @@ def read_plot_pandas(BER_list,labels,title=""):
         index += 1
 
     plt.legend()
-    plt.title('SNR and BER'+title)
+    plt.title('SNR and {} '.format(BER_BLER)+title)
     plt.xlabel('SNR')
-    plt.ylabel('BER')
+    plt.ylabel(BER_BLER)
     
-    plt.show()
-    #plt.savefig('{}/Results_{}.png'.format(PLOTS_PATH,get_time_string()))
+    #plt.show()
+    plt.savefig('{}/{}/Results_{}_{}.png'.format(PLOTS_PATH,BER_BLER,title,get_time_string()))
            
 
 def vector_to_pandas(name,BER,path=Test_PAHT):
