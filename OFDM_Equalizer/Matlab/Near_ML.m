@@ -4,7 +4,7 @@ function [s_est,nodos] = Near_ML(yp,R,conste,index)
   [row nt] = size(R);
   QRM = length(conste);
   
-%% parametros de inicio
+%% parametros de inici
   M=4;
   s_est = zeros(nt,1)+1i*zeros(nt,1);
   sest3 = zeros(nt,1)+1i*zeros(nt,1);
