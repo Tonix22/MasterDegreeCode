@@ -10,6 +10,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader, random_split
 import crcmod.predefined
 import time
+from NearMl import Near_ML
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
 sys.path.insert(0, main_path+"tools")
@@ -217,6 +218,53 @@ class Rx_loader(object):
             H_H = H.conj().resolve_conj().T
             x_lmse[i] = torch.linalg.inv(H_H@H+torch.eye(48).to(self.device)*Pn)@H_H@Y[i]
         return x_lmse
+    
+    
+    def OSIC_X(self,chann,Y):
+        conste = self.data.Qsym.QAM_N_arr
+        index  = np.arange(48)
+        x_osic = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
+        for i in range(chann.shape[0]):
+            H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
+            x_osic[i] = self.OSIC_Det(Y[i],H,conste,index)
+            
+        return x_osic
+
+    def NML_X(self,chann,Y):
+        conste = self.data.Qsym.QAM_N_arr
+        index  = np.arange(48)
+        x_nml = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
+        
+        for i in range(chann.shape[0]):
+            H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
+            x_nml[i] = Near_ML(Y[i],H,conste,index)
+            
+        return x_nml
+
+    def OSIC_Det(self,rm, mag2, conste, index):
+        nodos = 0
+        rows, cols = mag2.shape
+        dim = len(conste)
+
+        # Declaracion
+        s_est = torch.zeros(rows, dtype=torch.complex128)
+        sest  = torch.zeros(rows, dtype=torch.complex128)
+        sest2 = torch.zeros(dim)
+
+        # Se hace la estimación de los símbolos usando el esquema OSIC
+        nodos = nodos + 1
+        for k in range(cols):
+            ind = cols - (k + 1)
+            a_est = rm[ind] / mag2[ind, ind]
+            sest2 = torch.abs(a_est - conste)**2
+            pos = torch.argsort(sest2)
+            sest[ind] = conste[pos[0]]
+            rm = (rm - sest[ind] * mag2[:, ind])
+
+        for k in range(cols):
+            s_est[index[k]] = sest[k]
+
+        return s_est
     
     def Chann_diag(self,chann):
         # Extract the diagonal of each matrix in the tensor
