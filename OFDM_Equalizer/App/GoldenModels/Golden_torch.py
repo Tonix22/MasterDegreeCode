@@ -22,13 +22,13 @@ from utils import get_time_string
 
 #Hyperparameters
 BATCHSIZE  = 100
-QAM        = 16
-ESTIM      = "LMSE"
+QAM        = 4
+ESTIM      = "OSIC"
 
 class Golden(pl.LightningModule,Rx_loader):
     def __init__(self,mode="MSE"):
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")        
+        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")   
         self.mode   = mode
         
         if(self.mode == "MSE"):
@@ -37,6 +37,10 @@ class Golden(pl.LightningModule,Rx_loader):
             self.estimator = self.LMSE_X
         elif(self.mode == "ZERO"):
             self.estimator = self.ZERO_X
+        elif(self.mode == "OSIC"):
+            self.estimator = self.OSIC_X
+        elif(self.mode == "NML"):
+            self.estimator = self.NML_X
         
     def forward(self, x):        
         return x
