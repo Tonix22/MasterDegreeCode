@@ -73,7 +73,7 @@ def Net_plot(Btype,model):
 
     elif(model == "GridNet Polar"):
         if(Btype == "BER"):
-            return GRID_PATH+prefix+"PolarGrid.csv"
+            return GRID_PATH+prefix+"BER_Test_PolarGridFinal.csv"
         else:
-            return GRID_PATH+prefix+"PolarGrid.csv"
+            return GRID_PATH+prefix+"BLER_Test_PolarGridFinal.csv"
         

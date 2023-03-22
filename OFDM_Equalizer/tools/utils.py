@@ -26,6 +26,7 @@ def get_time_string():
 def read_plot_pandas(BER_list,labels,title="",BER_BLER = 'BER'):
     indexValues = np.arange(GOLDEN_WORST_SNR,GOLDEN_BEST_SNR+1,GOLDEN_STEP)
     index = 0
+    width = 2 if len(BER_list) <= 3 else 1
     for BER_it in BER_list:
         df  = pd.read_csv(BER_it)
         BER = df.iloc[:, 1].to_numpy()
@@ -33,7 +34,25 @@ def read_plot_pandas(BER_list,labels,title="",BER_BLER = 'BER'):
         indexValues_interp = np.linspace(GOLDEN_WORST_SNR, GOLDEN_BEST_SNR, 200)
         BER_interp = f(indexValues_interp)
         plt.grid(True, which="both")
-        plt.semilogy(indexValues_interp, BER_interp, label=labels[index])
+        plt.semilogy(indexValues_interp, BER_interp, label=labels[index],linewidth=width)
+        if(index > 2):
+            # Add dashed line
+            plt.gca().get_lines()[-1].set_linestyle("--")
+            # Add star marker
+            if(index == 3):
+                plt.gca().get_lines()[-1].set_marker("v")
+            elif(index == 4):
+                plt.gca().get_lines()[-1].set_marker("h")
+            elif(index == 5):
+                plt.gca().get_lines()[-1].set_marker("+")
+            elif(index == 6):
+                plt.gca().get_lines()[-1].set_marker("s")
+            else:
+                plt.gca().get_lines()[-1].set_marker("*")
+            
+            plt.gca().get_lines()[-1].set_markersize(4)
+            plt.gca().get_lines()[-1].set_markevery(10)  # set marker every 10th data point
+        
         index += 1
 
     plt.legend()
