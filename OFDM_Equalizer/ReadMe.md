@@ -26,3 +26,6 @@ SNR from {20 to 3}
 
 ## Check last values added in folder linux 
 ls -Art | tail -n 1
+
+## Install Kaggle
+pip install kaggle

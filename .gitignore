@@ -27,3 +27,5 @@ OFDM_Equalizer/App/Transformers/NaturalLanguage/.data/multi30k/*
 
 OFDM_Equalizer/App/FixedPoint/libtorch/*
 OFDM_Equalizer/App/FixedPoint/build/*
+Data/kaggle_dataset/v2v80211p_LOS.mat
+Data/kaggle_dataset/v2v80211p_NLOS.mat
