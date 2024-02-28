@@ -1,4 +1,3 @@
-import scipy.io
 import numpy as np
 import os
 import sys
@@ -20,10 +19,9 @@ class Channel():
             Download_Mat_files()
             
         if(LOS):
-            Mat = scipy.io.loadmat("{}{}".format(directory_path,'v2v80211p_LOS.mat'))
+            self.con_list = np.load("{}{}".format(directory_path,'/v2v80211p_LOS.npy'))
         else:
-            Mat = scipy.io.loadmat("{}{}".format(directory_path,'v2v80211p_NLOS.mat'))
-        self.con_list = Mat['vectReal32b']
+            self.con_list = np.load("{}{}".format(directory_path,'/v2v80211p_NLOS.npy'))       
         
     def __getitem__(self, index):
         return self.con_list[:,:,index]

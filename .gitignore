@@ -1,4 +1,6 @@
 *pyc
+*.npy
+*.mat
 *Tex
 partial_movies_files/*.mp4
 *.png
@@ -29,3 +31,4 @@ OFDM_Equalizer/App/FixedPoint/libtorch/*
 OFDM_Equalizer/App/FixedPoint/build/*
 Data/kaggle_dataset/v2v80211p_LOS.mat
 Data/kaggle_dataset/v2v80211p_NLOS.mat
+Data/kaggle_dataset/v2v80211p_LOS.npy

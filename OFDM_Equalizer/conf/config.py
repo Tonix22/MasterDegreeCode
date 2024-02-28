@@ -5,7 +5,7 @@ src         = os.path.dirname(os.path.abspath(__file__))+"/../"
 base       = src+"models/16QAM/"
 Test_PAHT  = src+"Test/"
 PLOTS_PATH = src+"plots/"
-MATH_PATH  = src+"Data/kaggle_dataset"
+MATH_PATH  = src+"../Data/kaggle_dataset"
 
 pth_complete = base + "OFDM_Eq_SNR_(20_5)_(BOTH)_-8_12_2022-16_42.pth"
 
