@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from QAM_arrays import QAM_dict
 from math import sqrt
+import torch
 
 class QAM():
     #const_type : Data, Unit_Pow, Norm
@@ -17,6 +18,7 @@ class QAM():
         self.constelation = constelation
         #get QAM array
         self.QAM_N_arr = QAM_dict[cont_type][constelation] #TODO normlize it with abs
+        self.QAM_N_arr_tensor = torch.tensor(QAM_dict[cont_type][constelation]).cuda() if torch.cuda.is_available() else torch.tensor(QAM_dict[cont_type][constelation])
         self.QAM_norm_arr = self.QAM_N_arr/np.max(np.abs(self.QAM_N_arr))
         #fixed random seed
         #np.random.seed(42)

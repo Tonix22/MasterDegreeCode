@@ -69,10 +69,10 @@ class RX(Dataset):
         #Normalize tensor
         H_idx       = self.H[:,:,idx]
         #extract both parts
-        chann_real   = torch.tensor(H_idx.real).to(torch.float64).to(self.device).unsqueeze(-1)
-        chann_imag   = torch.tensor(H_idx.imag).to(torch.float64).to(self.device).unsqueeze(-1)        
+        chann_real = torch.from_numpy(H_idx.real).to(torch.float64)
+        chann_imag = torch.from_numpy(H_idx.imag).to(torch.float64)     
         #Final tensor (48,48,2) of two channels
-        chann_tensor = torch.cat((chann_real, chann_imag), dim=2)
+        chann_tensor = torch.cat((chann_real.unsqueeze(-1), chann_imag.unsqueeze(-1)), dim=2)
       
         #Tx part
         tx_tensor = None
@@ -83,12 +83,12 @@ class RX(Dataset):
             tx_tensor[-1]  = 3 # eos
         
         if(self.load == "Complete"): #Imaginary and real parts
-            tx_tensor = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex128).to(self.device)
+            tx_tensor = torch.tensor(self.Qsym.GroundTruth[:,idx]).squeeze().to(torch.complex128)
             
         return chann_tensor,tx_tensor
     
     
-class Rx_loader(object):
+class Rx_loader():
     def __init__(self,batch_size,QAM,load):
         self.data    = RX(QAM,"Unit_Pow",load)
         # Define the split ratios (training, validation, testing)
@@ -102,9 +102,9 @@ class Rx_loader(object):
         # set the seed for reproducibility
         torch.manual_seed(0)
         train_set, val_set, test_set = random_split(self.data, [train_size, val_size, test_size])
-        self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
-        self.val_loader   = DataLoader(val_set,   batch_size=batch_size, shuffle=False)
-        self.test_loader  = DataLoader(test_set,  batch_size=batch_size, shuffle=False)
+        self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True,num_workers=16)
+        self.val_loader   = DataLoader(val_set,   batch_size=batch_size, shuffle=False,num_workers=16)
+        self.test_loader  = DataLoader(test_set,  batch_size=batch_size, shuffle=False,num_workers=16)
         self.test_set     = test_set
         self.batch_size   = batch_size
         #Telecom stuff
@@ -170,7 +170,6 @@ class Rx_loader(object):
             self.BER_list.append(self.BER)
             if(self.SNR_db == 5):
                 print("SNR:{} BER:{} BLER:{} avg_time:{:.2e}".format(self.SNR_db,self.BER,self.BLER,self.avg_time))
-                print("avg_time:{:.2e}".format(self.avg_time), file=open("./TimeLog/time_{}.log".format(csv_name), "w"))
             else:
                 print("SNR:{} BER:{} BLER:{}".format(self.SNR_db,self.BER,self.BLER))
         
@@ -231,7 +230,7 @@ class Rx_loader(object):
         return x_osic
 
     def NML_X(self,chann,Y):
-        conste = self.data.Qsym.QAM_N_arr
+        conste = self.data.Qsym.QAM_N_arr_tensor
         index  = np.arange(48)
         x_nml = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
         

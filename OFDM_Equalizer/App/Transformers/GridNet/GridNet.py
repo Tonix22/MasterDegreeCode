@@ -48,8 +48,8 @@ STEP_ANGLE  = np.pi/6
 #Hyperparameters
 BATCHSIZE  = 100
 QAM        = 16
-NUM_EPOCHS = 25 if GRID == "Square" else 12 #50,100,150
-SNR        = 25
+NUM_EPOCHS = 14 if GRID == "Square" else 6 #50,100,150
+SNR        = 30
 
 
 embedding_size = 512

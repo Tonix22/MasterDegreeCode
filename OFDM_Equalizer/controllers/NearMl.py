@@ -2,32 +2,42 @@ import torch
 import numpy as np
 import sys
 
+def complex_argsort(data):
+    real_parts = data.real
+    imag_parts = data.imag
+    max_imag = imag_parts.abs().max() + 1
+    sort_key = real_parts * max_imag + imag_parts
+    _, sorted_indices = torch.sort(sort_key)
+    sorted_data = data[sorted_indices]
+    return sorted_indices,sorted_data
+
 def Near_ML(yp, R, conste, index):
     # Preprocessing for Near_ML detection
+    currenDevice =  'cuda' if torch.cuda.is_available() else 'cpu'
     row, nt = R.shape
     QRM = len(conste)
 
     # Initialization parameters
     M = 4
-    s_est = torch.zeros(nt, dtype=torch.complex128)
-    sest3 = torch.zeros(nt, dtype=torch.complex128)
-    sest2 = torch.zeros(QRM)
+    s_est = torch.zeros(nt, dtype=torch.complex128,device = currenDevice)
+    sest3 = torch.zeros(nt, dtype=torch.complex128,device = currenDevice)
+    sest2 = torch.zeros(QRM,device = currenDevice)
     
     acu = 0
     nodos = 0
 
-    parent_yp = torch.zeros((nt, QRM), dtype=torch.complex128)
-    parent_yp2 = torch.zeros((nt, M), dtype=torch.complex128)
-    parent_yp2t = torch.zeros((nt, M), dtype=torch.complex128)
-    parent_node = torch.zeros((1, 2 * QRM), dtype=torch.complex128)
-    parent_node2 = torch.zeros((nt, 2 * M), dtype=torch.complex128)
-    parent_node2t = torch.zeros((1, 2 * M), dtype=torch.complex128)
-    vector = torch.zeros(QRM * M)
-    pos = torch.zeros(QRM * M)
-    x1 = torch.zeros((48, 2 * M * QRM), dtype=torch.complex128)
-    distc = torch.zeros((M * QRM), dtype=torch.complex128)
-    distc2 = torch.zeros(QRM)
-    ordtotal = torch.zeros(M * QRM)
+    parent_yp = torch.zeros((nt, QRM), dtype=torch.complex128,device = currenDevice)
+    parent_yp2 = torch.zeros((nt, M), dtype=torch.complex128,device = currenDevice)
+    parent_yp2t = torch.zeros((nt, M), dtype=torch.complex128,device = currenDevice)
+    parent_node = torch.zeros((1, 2 * QRM), dtype=torch.complex128, device = currenDevice)
+    parent_node2 = torch.zeros((nt, 2 * M), dtype=torch.complex128, device = currenDevice)
+    parent_node2t = torch.zeros((1, 2 * M), dtype=torch.complex128, device = currenDevice)
+    vector = torch.zeros(QRM * M,device = currenDevice)
+    pos = torch.zeros(QRM * M,device = currenDevice)
+    x1 = torch.zeros((48, 2 * M * QRM), dtype=torch.complex128,device = currenDevice)
+    distc = torch.zeros((M * QRM), dtype=torch.complex128,device = currenDevice)
+    distc2 = torch.zeros(QRM,device = currenDevice)
+    ordtotal = torch.zeros(M * QRM,device = currenDevice)
 
     # Detection at level nt
     a_est = yp[nt - 1] / R[nt - 1, nt - 1]
@@ -55,17 +65,7 @@ def Near_ML(yp, R, conste, index):
                 a_est = rm[k - 1] / R[k - 1, k - 1]
                 sest2 = (torch.abs(a_est - conste) ** 2)
                 distc2 = distp + sest2
-                
-                # Convert the tensor to a NumPy array
-                distc2_np = distc2.numpy()
-                # Get the sorted indices using NumPy's argsort function
-                ord2 = np.argsort(distc2_np)
-                # Get the sorted values using the sorted indices
-                dist2 = distc2_np[ord2]
-                # Convert the indices and sorted values back to PyTorch tensors if needed
-                ord2  = torch.from_numpy(ord2)
-                dist2 = torch.from_numpy(dist2)
-                
+                ord2, dist2 = complex_argsort(distc2)
                 col = 0
                 for p in range(M):
                     parent_node2[k, col:col + 2] = parent_node[0, row:row + 2]
@@ -90,15 +90,7 @@ def Near_ML(yp, R, conste, index):
                     acu += QRM
                     col += 2
                 
-                # Convert the tensor to a NumPy array
-                distc_np = distc.numpy()
-                # Get the sorted indices using NumPy's argsort function
-                ord3 = np.argsort(distc_np)
-                # Get the sorted values using the sorted indices
-                dist3 = distc_np[ord3]
-                # Convert the indices and sorted values back to PyTorch tensors if needed
-                ord3 = torch.from_numpy(ord3)
-                dist3 = torch.from_numpy(dist3)
+                ord3, dist3 = complex_argsort(distc)
 
                 if dist3[0].item().real > dmin.real and dist3[0].item().imag > dmin.imag:
                     skip = 1
@@ -120,7 +112,7 @@ def Near_ML(yp, R, conste, index):
             x1[:, indice:indice + (2 * M)] = parent_node2
             indice += (2 * M)
             dtotal = x1[0, 0:2:indice - 1]
-            dmin = complex(np.min(dtotal.numpy()))
+            dmin = complex(np.min(dtotal.cpu().numpy()))
             nodos += M
 
         # Check if a new tree is opened
@@ -139,18 +131,7 @@ def Near_ML(yp, R, conste, index):
         ordtotal[contador] = k
         contador += 1
 
-    # Convert the tensor to a NumPy array
-    dtotal_np = dtotal.numpy()
-
-    # Get the sorted indices using NumPy's argsort function
-    ordmin = np.argsort(dtotal_np)
-
-    # Get the sorted values using the sorted indices
-    dminf = dtotal_np[ordmin]
-
-    # Convert the indices and sorted values back to PyTorch tensors if needed
-    ordmin = torch.from_numpy(ordmin)
-    dminf  = torch.from_numpy(dminf)
+    ordmin, dminf = complex_argsort(dtotal)
     
     sest3 = x1[:, int(ordtotal[ordmin[0].item()].item())]
 

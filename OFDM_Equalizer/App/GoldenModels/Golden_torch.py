@@ -22,8 +22,8 @@ from utils import get_time_string
 
 #Hyperparameters
 BATCHSIZE  = 100
-QAM        = 4
-ESTIM      = "OSIC"
+QAM        = 16
+ESTIM      = "MSE"
 
 class Golden(pl.LightningModule,Rx_loader):
     def __init__(self,mode="MSE"):

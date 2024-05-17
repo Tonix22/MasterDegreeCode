@@ -15,11 +15,11 @@ Golden_BER_type_4 = {
  }
 
 Golden_BER_type_16 = {
-    "LMMSE": 'BER_Test_(Golden_16QAM_LMSE)_-10_3_2023-14_19.csv',
-    "MSE"  : 'BER_Test_(Golden_16QAM_MSE)_-10_3_2023-14_19.csv',
+    "LMMSE": 'BER_Test_(Golden_16QAM_LMSE)_-26_4_2024-14_36.csv',
+    "MSE"  : 'BER_Test_(Golden_16QAM_MSE)_-26_4_2024-14_27.csv',
     "ZERO" : 'BER_Test_(Golden_16QAM_ZERO)_-10_3_2023-14_19.csv',
-    "OSIC" : 'BER_Test_(Golden_16QAM_OSIC)_-16_3_2023-15_39.csv',
-    "NML"  : 'BER_Test_(Golden_16QAM_NML)_-16_3_2023-17_21.csv'
+    "OSIC" : 'BER_Test_(Golden_16QAM_OSIC)_-26_4_2024-14_36.csv',
+    "NML"  : 'BER_Test_(Golden_16QAM_NML)_-16_4_2024-23_43.csv'
 }
 
 Golden_BLER_type_4 = {

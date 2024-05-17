@@ -21,6 +21,6 @@ def plot_files(labels,Btype,Title,QAM=16):
 
 
 #labels = ["LMMSE","OSIC","NML","PolarNet","ComplexNet","MobileNet","GridNet Square","GridNet Polar"]
-labels = ["OSIC","NML","GridNet Polar"]
-plot_files(labels,"BLER","Non_linear_Golden vs GridNetSquare")
+labels = ["MSE","LMMSE","OSIC","NML"]
+plot_files(labels,"BER","Non_linear_Golden vs GridNetSquare")
 
