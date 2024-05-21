@@ -3,6 +3,7 @@ import pandas as pd
 import sys
 import os
 from scipy.interpolate import interp1d
+import datetime
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
 sys.path.insert(0, main_path+"conf")
@@ -12,7 +13,7 @@ from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP, PLOTS_PATH
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-MONTH = "January"
+MONTH = datetime.now().strftime('%b')
     
 def get_time_string():
     current_time = datetime.now()
@@ -68,7 +69,14 @@ def vector_to_pandas(name,BER,path=Test_PAHT):
     BER = np.asarray(BER)
     BER = np.flip(BER)
     df = pd.DataFrame(BER)
+    
     if(path == Test_PAHT):
-        df.to_csv("{}/{}/{}".format(path,MONTH,name))
+        path = "{}/{}".format(path,MONTH)
+    
+        if not os.path.exists(path):
+            # Create the directory
+            os.makedirs(path)
+            
+        df.to_csv(path+"/"+name)
     else:
         df.to_csv("{}/{}".format(path,name))

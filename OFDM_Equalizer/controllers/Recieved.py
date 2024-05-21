@@ -173,8 +173,8 @@ class Rx_loader():
             else:
                 print("SNR:{} BER:{} BLER:{}".format(self.SNR_db,self.BER,self.BLER))
         
-        vector_to_pandas("BER_{}.csv".format(csv_name),self.BER_list,path="./BER_csv")
-        vector_to_pandas("BLER_{}.csv".format(csv_name),self.BLER_list,path="./BLER_csv")
+        vector_to_pandas("BER_{}.csv".format(csv_name),self.BER_list)
+        vector_to_pandas("BLER_{}.csv".format(csv_name),self.BLER_list)
         
             
     def Get_Y(self,H,x,conj=False,noise_activ = True):
