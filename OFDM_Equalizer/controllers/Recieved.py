@@ -210,6 +210,7 @@ class Rx_loader():
                 Pn = Ps / (10**(self.SNR_db/10))
                 # Generate noise
                 noise = torch.sqrt(Pn/2)* (torch.randn(self.data.sym_no).to(self.device) + 1j*torch.randn(self.data.sym_no).to(self.device))
+                
                 if self.data.load == "DFT_spreading":
                     Y[i] = self.data.F_H_Tensor@(z+noise)
                 else:
@@ -228,6 +229,7 @@ class Rx_loader():
                 H = self.data.F_H_Tensor@H@self.data.F_Tensor
             H_H = H.conj().resolve_conj().T
             x_mse[i] = torch.linalg.inv(H_H@H)@H_H@Y[i]
+            
             if self.data.load == "DFT_spreading":
                 x_mse[i] = self.data.F_Tensor@x_mse[i]
         return x_mse
@@ -236,6 +238,7 @@ class Rx_loader():
         x_lmse = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
         for i in range(chann.shape[0]):
             H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
+            
             if self.data.load == "DFT_spreading":
                 H = self.data.F_H_Tensor@H@self.data.F_Tensor
             #Signal power 
@@ -244,6 +247,7 @@ class Rx_loader():
             Pn = Ps / (10**(self.SNR_db/10))
             H_H = H.conj().resolve_conj().T
             x_lmse[i] = torch.linalg.inv(H_H@H+torch.eye(48).to(self.device)*Pn)@H_H@Y[i]
+            
             if self.data.load == "DFT_spreading":
                 x_lmse[i] = self.data.F_Tensor@x_lmse[i]
         return x_lmse
@@ -255,9 +259,11 @@ class Rx_loader():
         x_osic = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
         for i in range(chann.shape[0]):
             H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
+            
             if self.data.load == "DFT_spreading":
                 H = self.data.F_H_Tensor@H@self.data.F_Tensor
             x_osic[i] = self.OSIC_Det(Y[i],H,conste,index)
+            
             if self.data.load == "DFT_spreading":
                 x_osic[i] = self.data.F_Tensor@x_osic[i]
             
@@ -270,9 +276,11 @@ class Rx_loader():
         
         for i in range(chann.shape[0]):
             H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
+            
             if self.data.load == "DFT_spreading":
                 H = self.data.F_H_Tensor@H@self.data.F_Tensor
             x_nml[i] = Near_ML(Y[i],H,conste,index)
+            
             if self.data.load == "DFT_spreading":
                 x_nml[i] = self.data.F_Tensor@x_nml[i]
             
