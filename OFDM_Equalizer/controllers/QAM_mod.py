@@ -24,7 +24,7 @@ class QAM():
         #np.random.seed(42)
         #Generate N bits
         #
-        if(load_type == "Complete"):
+        if(load_type == "Complete" or load_type == "DFT_spreading"):
             self.bits  = np.random.randint(0,self.constelation,num_symbols)
         if(load_type == "Alphabet"): #natural language procesing
             self.bits  = np.random.randint(4,self.constelation,num_symbols) 
