@@ -16,7 +16,7 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
-from utils import vector_to_pandas, get_time_string
+from utils import vector_to_pandas, get_date_string
 from GridCode import GridCode
 from RadGrid import PolarGridCode
 
@@ -366,7 +366,7 @@ if __name__ == '__main__':
     trainer.fit(tf)
     
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_time_string())
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_date_string())
     tf.SNR_BER_TEST(trainer,formating)
     
 

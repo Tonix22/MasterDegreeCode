@@ -16,7 +16,7 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
-from utils import vector_to_pandas, get_time_string
+from utils import vector_to_pandas, get_date_string
 from Scatter_plot_results import ComparePlot
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../"

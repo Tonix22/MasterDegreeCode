@@ -15,14 +15,26 @@ from datetime import datetime
 
 MONTH = datetime.now().strftime('%b')
     
-def get_time_string():
+def get_date_string():
     current_time = datetime.now()
     day  = current_time.day
-    mon  = current_time.month
     year = current_time.year
+
+    return "{}_{}_{}".format(year,MONTH,day)
+
+def get_time_string():
+    current_time = datetime.now()
     hr   = current_time.time().hour
     mn   = current_time.time().minute
-    return "-{}_{}_{}-{}_{}".format(day,mon,year,hr,mn)
+    
+    return "{:02}{:02}".format(hr,mn)
+
+def convert_to_path(filename):
+    base, ext = os.path.splitext(filename)
+    parts = base.split('_')
+    new_path = os.path.join(*parts) + ext
+
+    return main_path+new_path
 
 def read_plot_pandas(BER_list,labels,title="",BER_BLER = 'BER'):
     indexValues = np.arange(GOLDEN_WORST_SNR,GOLDEN_BEST_SNR+1,GOLDEN_STEP)
@@ -69,14 +81,7 @@ def vector_to_pandas(name,BER,path=Test_PAHT):
     BER = np.asarray(BER)
     BER = np.flip(BER)
     df = pd.DataFrame(BER)
-    
-    if(path == Test_PAHT):
-        path = "{}/{}".format(path,MONTH)
-    
-        if not os.path.exists(path):
-            # Create the directory
-            os.makedirs(path)
-            
-        df.to_csv(path+"/"+name)
-    else:
-        df.to_csv("{}/{}".format(path,name))
+    if not os.path.exists(path):
+        # Create the directory
+        os.makedirs(path)
+    df.to_csv("{}/{}".format(path,name))

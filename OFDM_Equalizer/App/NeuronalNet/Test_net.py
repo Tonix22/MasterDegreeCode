@@ -20,7 +20,7 @@ sys.path.insert(0, main_path+"conf")
 
 from utils import vector_to_pandas
 from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
-from utils import get_time_string
+from utils import get_date_string
 
 class TestNet(NetLabs):
     def __init__(self,path = None,pth_real=None,pth_imag=None,loss_type=MSE):
@@ -98,7 +98,7 @@ class TestNet(NetLabs):
             #Calculate BER
             BER.append(Ber_DF)
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],get_date_string())
         df.to_csv('{}/Test_BER_{}.csv'.format(test_path,formating), header=True, index=False)
         vector_to_pandas("BER_{}.csv".format(formating),BER)
     
@@ -149,7 +149,7 @@ class TestNet(NetLabs):
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
         
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,BOTH,get_date_string())
         vector_to_pandas("BER_{}.csv".format(formating),BER)
         
         
@@ -225,7 +225,7 @@ class TestNet_Angle_Phase(NetLabs):
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
         
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[BOTH],get_date_string())
         #df.to_csv('{}/Testing_Loss_{}.csv'.format(test_path,formating), header=True, index=False)
         
         vector_to_pandas("BER_{}.csv".format(formating),BER)
@@ -272,7 +272,7 @@ class TestNet_BCE(NetLabs):
             
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[FOUR],get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[FOUR],get_date_string())
         vector_to_pandas("BER_{}.csv".format(formating),BER)
         
 class TestNet_COMPLEX(NetLabs):
@@ -304,5 +304,5 @@ class TestNet_COMPLEX(NetLabs):
             
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
             
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[COMPLEX],get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[COMPLEX],get_date_string())
         vector_to_pandas("BER_{}.csv".format(formating),BER)

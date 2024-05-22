@@ -14,7 +14,7 @@ main_path   = os.path.dirname(os.path.abspath(__file__))+"/../../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
-from utils import vector_to_pandas, get_time_string
+from utils import vector_to_pandas, get_date_string
 
 common_path = os.path.dirname(os.path.abspath(__file__))+"/../Common"
 sys.path.insert(0, common_path)
@@ -213,5 +213,5 @@ if __name__ == '__main__':
                 resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/models/version_77/checkpoints/epoch=399-step=96000.ckpt')
     model   = ZeroForcing(48)
     trainer.fit(model)
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"ZeroForceMobileNet",get_time_string())
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"ZeroForceMobileNet",get_date_string())
     model.SNR_BER_TEST(trainer,formating)

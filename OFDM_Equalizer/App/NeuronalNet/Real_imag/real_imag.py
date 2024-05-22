@@ -16,7 +16,7 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
-from utils import vector_to_pandas, get_time_string
+from utils import vector_to_pandas, get_date_string
 
 #Hyperparameters
 BATCHSIZE  = 20
@@ -196,7 +196,7 @@ if __name__ == '__main__':
     trainer.fit(Cn)
     
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"RealImag",get_time_string())
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"RealImag",get_date_string())
     Cn.SNR_BER_TEST(trainer,formating)
     
 

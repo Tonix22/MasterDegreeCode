@@ -9,7 +9,7 @@ from Recieved import RX
 from math import pi
 from  tqdm import tqdm
 from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
-from utils import get_time_string,vector_to_pandas
+from utils import get_date_string,vector_to_pandas
 import pickle
 
 class RegTree(NetLabs):
@@ -77,7 +77,7 @@ class RegTree(NetLabs):
             
             BER.append(errors/((self.data.bitsframe*self.data.sym_no)*frames))
             
-        formating = "Tree_SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,"REGTREE",get_time_string())
+        formating = "Tree_SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,"REGTREE",get_date_string())
         vector_to_pandas("BER_{}.csv".format(formating),BER)
         
         

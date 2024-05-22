@@ -18,17 +18,18 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
-from utils import get_time_string
+from utils import get_date_string, convert_to_path
 
 #Hyperparameters
 BATCHSIZE  = 100
 QAM        = 16
-ESTIM      = "MSE"
+ESTIM      = "NML"
+METHOD     = "DFT_spreading" # Complete DFT_spreading
 
 class Golden(pl.LightningModule,Rx_loader):
     def __init__(self,mode="MSE"):
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")   
+        Rx_loader.__init__(self,BATCHSIZE,QAM,METHOD)   
         self.mode   = mode
         
         if(self.mode == "MSE"):
@@ -68,8 +69,10 @@ class Golden(pl.LightningModule,Rx_loader):
         
 if __name__ == '__main__':
     
-    trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=2)],enable_checkpointing=False)
+    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],enable_checkpointing=False)
     Gold    = Golden(ESTIM)
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,Gold.mode,get_time_string())
-    Gold.SNR_BER_TEST(trainer,formating)
+    pathPreamble = "Test_Golden_{}QAM_{}".format(QAM,Gold.mode)
+    
+    
+    Gold.SNR_BER_TEST(trainer,pathPreamble)

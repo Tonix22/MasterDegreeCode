@@ -18,7 +18,7 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
-from utils import vector_to_pandas, get_time_string
+from utils import vector_to_pandas, get_date_string
 from Scatter_plot_results import ComparePlot
 
 #Hyperparameters
@@ -142,7 +142,7 @@ if __name__ == '__main__':
                 #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/lightning_logs/version_49/checkpoints/epoch=8-step=2700.ckpt')
     Cn = PolarNet()    
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"PolarNet",get_time_string())
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"PolarNet",get_date_string())
     Cn.SNR_BER_TEST(trainer,formating)
     
 

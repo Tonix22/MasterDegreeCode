@@ -14,7 +14,7 @@ model_path  = main_path+"models"
 
 sys.path.insert(0, main_path+"tools")
 
-from utils import get_time_string
+from utils import get_date_string
 
 
 class TrainNet(NetLabs):
@@ -94,7 +94,7 @@ class TrainNet(NetLabs):
                             loop.set_description(f"SNR [{SNR}] EPOCH[{epochs_range}] [{real_imag_str[self.real_imag]}]]")
                             loop.set_postfix(loss=avg_loss.cpu().detach().numpy())
         
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_date_string())
         df.to_csv('{}/Train_{}.csv'.format(report_path,formating), header=True, index=False)
         
         self.SaveModel("PTH",formating)
@@ -156,7 +156,7 @@ class TrainNet(NetLabs):
                     df["SNR{}".format(SNR)]= losses
                     losses.clear()
             
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_date_string())
         df.to_csv('{}/Train_{}.csv'.format(report_path,formating), header=True, index=False)
         
         self.SaveModel("PTH",formating)
@@ -237,7 +237,7 @@ class TrainNet(NetLabs):
                     df["SNR{}".format(SNR)]= losses
                     losses.clear()
             
-        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_time_string())
+        formating = "SNR_({}_{})_({})_{}".format(self.BEST_SNR,self.WORST_SNR,real_imag_str[self.real_imag],get_date_string())
         df.to_csv('{}/Train_{}.csv'.format(model_path,formating), header=True, index=False)
         
         self.SaveModel("PTH",formating)

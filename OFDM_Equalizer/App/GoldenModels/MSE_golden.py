@@ -9,7 +9,7 @@ sys.path.insert(0, main_path+"conf")
 sys.path.insert(0, main_path+"tools")
 
 from Recieved import RX
-from utils import vector_to_pandas ,get_time_string
+from utils import vector_to_pandas ,get_date_string
 from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
 
 data = RX(4,"Unit_Pow")
@@ -62,7 +62,7 @@ if __name__ == '__main__':
                 
         BER.append(errors/(bits))
         
-    vector_to_pandas("Golden_{}_BER_SNR{}.csv".format(Select,get_time_string()),BER)
+    vector_to_pandas("Golden_{}_BER_SNR{}.csv".format(Select,get_date_string()),BER)
 
 
 

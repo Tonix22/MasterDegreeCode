@@ -15,7 +15,7 @@ sys.path.insert(0, main_path+"tools")
 from config import *
 from Constants import *
 from Recieved import RX
-from utils import vector_to_pandas ,get_time_string
+from utils import vector_to_pandas ,get_date_string
 
 def Psuedo_inv(H):
     H = np.matrix(H)
@@ -125,4 +125,4 @@ for SNR in range(GOLDEN_BEST_SNR,GOLDEN_WORST_SNR-1,-1*GOLDEN_STEP):
                 
         BER.append(errors/((data.bitsframe*data.sym_no)*data.total))
         
-vector_to_pandas("BER_Inv_layer_SNR{}.csv".format(get_time_string()),BER)
+vector_to_pandas("BER_Inv_layer_SNR{}.csv".format(get_date_string()),BER)

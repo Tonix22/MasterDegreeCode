@@ -17,7 +17,7 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
-from utils import get_time_string
+from utils import get_date_string
 
 
 #Hyperparameters
@@ -98,5 +98,5 @@ if __name__ == '__main__':
     trainer = Trainer(fast_dev_run=False,accelerator='cuda',callbacks=[TQDMProgressBar(refresh_rate=2)],enable_checkpointing=False)
     PolAE   = PolarAE(48)
     #name of output log file 
-    formating = "Test_(PolarAE_QAM_{})_{}".format(QAM,get_time_string())
+    formating = "Test_(PolarAE_QAM_{})_{}".format(QAM,get_date_string())
     PolAE.SNR_BER_TEST(trainer,formating)

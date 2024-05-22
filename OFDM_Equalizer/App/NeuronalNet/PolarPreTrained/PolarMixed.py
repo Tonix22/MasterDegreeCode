@@ -16,7 +16,7 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../../../"
 sys.path.insert(0, main_path+"controllers")
 sys.path.insert(0, main_path+"tools")
 from Recieved import RX,Rx_loader
-from utils import vector_to_pandas, get_time_string
+from utils import vector_to_pandas, get_date_string
 from Scatter_plot_results import ComparePlot
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
@@ -126,7 +126,7 @@ if __name__ == '__main__':
     trainer = Trainer(fast_dev_run=False,accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=40)],auto_lr_find=True)
     Cn = PolarMixed()
     #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"PolarMixed",get_time_string())
+    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"PolarMixed",get_date_string())
     Cn.SNR_BER_TEST(trainer,formating)
     
 
