@@ -16,10 +16,10 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
 sys.path.insert(0, main_path+"tools")
 sys.path.insert(0, main_path+"conf")
 from utils import vector_to_pandas, get_date_string,get_time_string, convert_to_path
-from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP
+from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP, GOLDEN_ACTIVE
 
 class RX(Dataset):
-    def __init__(self,constelation,bitstype,load):
+    def __init__(self,constelation,bitstype,load,device):
         #Channel Data set is of size 48
         self.bitsframe = int(log2(constelation))
         self.sym_no = 48
@@ -35,13 +35,13 @@ class RX(Dataset):
         self.H = np.empty((self.sym_no,self.sym_no,self.total), dtype=self.LOS.con_list.dtype)
         self.H[:,:,0::2] = self.LOS.con_list
         self.H[:,:,1::2] = self.NLOS.con_list
-        self.device  = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        
+        self.device = device
         self.load = load # "Complete", "Alphabet", "DFT_spreading"
         if self.load == "DFT_spreading":
             self.F,self.F_H   = self.create_dft_matrix(48)
-            self.F_Tensor = torch.tensor(self.F,device=self.device)
-            self.F_H_Tensor = torch.tensor(self.F_H,device=self.device)
+            self.FQ,self.FQH  = self.create_dft_matrix(constelation)
+            self.F_Tensor     = torch.tensor(self.F,device=self.device)
+            self.F_H_Tensor   = torch.tensor(self.F_H,device=self.device)
         #Collapse with channel
         self.Generate()
         self.power_factor = np.sum(np.abs(self.H)**2)/np.size(self.H) # Power of complex matrix H
@@ -105,11 +105,15 @@ class RX(Dataset):
     
     
 class Rx_loader():
-    def __init__(self,batch_size,QAM,load):
-        self.data    = RX(QAM,"Unit_Pow",load)
+    def __init__(self,batch_size,QAM,load,internaldevice):
+        self.data    = RX(QAM,"Unit_Pow",load,internaldevice)
         # Define the split ratios (training, validation, testing)
         train_ratio = 0.6
-        val_ratio   = 0.2
+        val_ratio   = 0.3
+        if GOLDEN_ACTIVE :
+            print("WARNING GOLDEN ACTIVE GOLDEN AND NOT FOR NN")
+            train_ratio = 0.01
+            val_ratio   = 0.01
         # Calculate the number of samples in each set
         train_size = int(train_ratio * len(self.data))
         val_size   = int(val_ratio * len(self.data))
@@ -262,12 +266,37 @@ class Rx_loader():
             
             if self.data.load == "DFT_spreading":
                 H = self.data.F_H_Tensor@H@self.data.F_Tensor
-            x_osic[i] = self.OSIC_Det(Y[i],H,conste,index)
+
+            x_osic[i] = self.osic_detection(H,Y[i])
+            
             
             if self.data.load == "DFT_spreading":
                 x_osic[i] = self.data.F_Tensor@x_osic[i]
             
         return x_osic
+
+    def osic_detection(self,H, y):
+        dtype = H.dtype
+        device = H.device
+        H = H.to(device, dtype)
+        y = y.to(device, dtype)
+        
+        # Step 1: QR decomposition of H
+        Q, R = torch.linalg.qr(H)
+        
+        # Step 2: Transform the received vector using the transpose conjugate of Q
+        v = torch.matmul(Q.conj().transpose(-2, -1), y)
+        
+        # Step 3: Initialize the estimated signal vector
+        N = H.size(1)
+        x_est = torch.zeros(N, dtype=dtype, device=device)
+        
+        # Step 4: Backward substitution for interference cancellation
+        for i in reversed(range(N)):
+            sum_Rx = torch.matmul(R[i, i+1:N], x_est[i+1:N])
+            x_est[i] = (v[i] - sum_Rx) / R[i, i]
+        
+        return x_est
 
     def NML_X(self,chann,Y):
         conste = self.data.Qsym.QAM_N_arr_tensor
@@ -286,30 +315,28 @@ class Rx_loader():
             
         return x_nml
 
-    def OSIC_Det(self,rm, mag2, conste, index):
-        nodos = 0
-        rows, cols = mag2.shape
+    def OSIC_Det(self,Y, H, conste, index):
+        rows, cols = H.shape
         dim = len(conste)
 
-        # Declaracion
-        s_est = torch.zeros(rows, dtype=torch.complex128)
-        sest  = torch.zeros(rows, dtype=torch.complex128)
-        sest2 = torch.zeros(dim)
-
-        # Se hace la estimación de los símbolos usando el esquema OSIC
-        nodos = nodos + 1
-        for k in range(cols):
-            ind = cols - (k + 1)
-            a_est = rm[ind] / mag2[ind, ind]
-            sest2 = torch.abs(a_est - conste)**2
-            pos = torch.argsort(sest2)
-            sest[ind] = conste[pos[0]]
-            rm = (rm - sest[ind] * mag2[:, ind])
+        x_hat = torch.zeros(rows, dtype=torch.complex128)
+        simbolEstimate  = torch.zeros(rows, dtype=torch.complex128)
+        distances = torch.zeros(dim)
 
         for k in range(cols):
-            s_est[index[k]] = sest[k]
+            i = cols - (k + 1)
+            # Y over diagonal
+            a_est = Y[i] / H[i, i]
+            # Measure distance between estim and constelation points
+            distances = torch.abs(a_est - conste)**2
+            # Return indeces from lowest to highest
+            pos = torch.argsort(distances)
+            simbolEstimate[i] = conste[pos[0]]
+            # Remove interference with symbol estimate times i-th column
+            Y -= simbolEstimate[i] * H[:, i]
+            x_hat[i] = simbolEstimate[i]            
 
-        return s_est
+        return x_hat
     
     def Chann_diag(self,chann):
         # Extract the diagonal of each matrix in the tensor
