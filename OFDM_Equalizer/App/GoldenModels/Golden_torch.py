@@ -11,7 +11,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 import warnings
 import numpy as np
-
+import sys
 
 warnings.filterwarnings("ignore", category=UserWarning)
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../../"
@@ -21,15 +21,16 @@ from Recieved import RX,Rx_loader
 from utils import get_date_string, convert_to_path
 
 #Hyperparameters
-BATCHSIZE  = 100
+BATCHSIZE  = 10
 QAM        = 16
-ESTIM      = "NML"
+ESTIM      = "OSIC"
 METHOD     = "DFT_spreading" # Complete DFT_spreading
 
 class Golden(pl.LightningModule,Rx_loader):
-    def __init__(self,mode="MSE"):
+    def __init__(self,mode="MSE",method = METHOD,qam = QAM,batchSize = BATCHSIZE):
+        internaldevice = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE,QAM,METHOD)   
+        Rx_loader.__init__(self,BATCHSIZE,QAM,METHOD,internaldevice)   
         self.mode   = mode
         
         if(self.mode == "MSE"):
@@ -70,9 +71,12 @@ class Golden(pl.LightningModule,Rx_loader):
 if __name__ == '__main__':
     
     trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],enable_checkpointing=False)
-    Gold    = Golden(ESTIM)
-    #name of output log file 
-    pathPreamble = "Test_Golden_{}QAM_{}".format(QAM,Gold.mode)
     
+    modes = ["MSE","LMSE","OSIC"]
+    methods = ["Complete","DFT_spreading"]
     
-    Gold.SNR_BER_TEST(trainer,pathPreamble)
+    for currentMode in modes:
+        for currenMehod in methods:
+            Gold   = Golden(mode=currentMode,method=currenMehod)
+            pathPreamble = "Test_Golden_{}QAM_{}".format(QAM,currentMode)
+            Gold.SNR_BER_TEST(trainer,pathPreamble)
