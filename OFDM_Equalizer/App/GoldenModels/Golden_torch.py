@@ -30,7 +30,7 @@ class Golden(pl.LightningModule,Rx_loader):
     def __init__(self,mode="MSE",method = METHOD,qam = QAM,batchSize = BATCHSIZE):
         internaldevice = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE,QAM,METHOD,internaldevice)   
+        Rx_loader.__init__(self,BATCHSIZE,QAM,method,internaldevice)   
         self.mode   = mode
         
         if(self.mode == "MSE"):
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     
     trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],enable_checkpointing=False)
     
-    modes = ["MSE","LMSE","OSIC"]
+    modes   = ["NML"]
     methods = ["Complete","DFT_spreading"]
     
     for currentMode in modes:

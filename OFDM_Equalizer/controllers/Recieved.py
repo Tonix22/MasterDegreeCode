@@ -10,13 +10,14 @@ import torch.nn as nn
 from torch.utils.data import Dataset,DataLoader, random_split
 import crcmod.predefined
 import time
-from NearMl import Near_ML
+from NearMl import near_ml
+from scipy.linalg import qr as scipy_qr
 
 main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
 sys.path.insert(0, main_path+"tools")
 sys.path.insert(0, main_path+"conf")
 from utils import vector_to_pandas, get_date_string,get_time_string, convert_to_path
-from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP, GOLDEN_ACTIVE
+from config import GOLDEN_BEST_SNR, GOLDEN_WORST_SNR, GOLDEN_STEP, GOLDEN_ACTIVE,GOLDEN_SAVE_RESULTS,GOLDEN_DATA_RATIO
 
 class RX(Dataset):
     def __init__(self,constelation,bitstype,load,device):
@@ -112,8 +113,8 @@ class Rx_loader():
         val_ratio   = 0.3
         if GOLDEN_ACTIVE :
             print("WARNING GOLDEN ACTIVE GOLDEN AND NOT FOR NN")
-            train_ratio = 0.01
-            val_ratio   = 0.01
+            train_ratio = GOLDEN_DATA_RATIO
+            val_ratio   = GOLDEN_DATA_RATIO
         # Calculate the number of samples in each set
         train_size = int(train_ratio * len(self.data))
         val_size   = int(val_ratio * len(self.data))
@@ -192,12 +193,14 @@ class Rx_loader():
                 print("SNR:{} BER:{} BLER:{} avg_time:{:.2e}".format(self.SNR_db,self.BER,self.BLER,self.avg_time))
             else:
                 print("SNR:{} BER:{} BLER:{}".format(self.SNR_db,self.BER,self.BLER))
-        
-        pathBER  = convert_to_path(path+"_BER_"+get_date_string())
-        pathBLER = convert_to_path(path+"_BLER_"+get_date_string())
-        
-        vector_to_pandas("{}_{}.csv".format(self.data.load,get_time_string()),self.BER_list,  path = pathBER)
-        vector_to_pandas("{}_{}.csv".format(self.data.load,get_time_string()),self.BLER_list, path = pathBLER)
+                
+        if (GOLDEN_SAVE_RESULTS) :
+            
+            pathBER  = convert_to_path(path+"_BER_"+get_date_string())
+            pathBLER = convert_to_path(path+"_BLER_"+get_date_string())
+            
+            vector_to_pandas("{}_{}.csv".format(self.data.load,get_time_string()),self.BER_list,  path = pathBER)
+            vector_to_pandas("{}_{}.csv".format(self.data.load,get_time_string()),self.BLER_list, path = pathBLER)
         
             
     def Get_Y(self,H,x,conj=False,noise_activ = True):
@@ -216,7 +219,7 @@ class Rx_loader():
                 noise = torch.sqrt(Pn/2)* (torch.randn(self.data.sym_no).to(self.device) + 1j*torch.randn(self.data.sym_no).to(self.device))
                 
                 if self.data.load == "DFT_spreading":
-                    Y[i] = self.data.F_H_Tensor@(z+noise)
+                    Y[i] = self.data.F_H_Tensor@(z+noise) # u = Gs+w
                 else:
                     Y[i] = z+noise
             
@@ -269,7 +272,6 @@ class Rx_loader():
 
             x_osic[i] = self.osic_detection(H,Y[i])
             
-            
             if self.data.load == "DFT_spreading":
                 x_osic[i] = self.data.F_Tensor@x_osic[i]
             
@@ -285,7 +287,7 @@ class Rx_loader():
         Q, R = torch.linalg.qr(H)
         
         # Step 2: Transform the received vector using the transpose conjugate of Q
-        v = torch.matmul(Q.conj().transpose(-2, -1), y)
+        v_tilde = torch.matmul(Q.conj().transpose(-2, -1), y)
         
         # Step 3: Initialize the estimated signal vector
         N = H.size(1)
@@ -294,26 +296,37 @@ class Rx_loader():
         # Step 4: Backward substitution for interference cancellation
         for i in reversed(range(N)):
             sum_Rx = torch.matmul(R[i, i+1:N], x_est[i+1:N])
-            x_est[i] = (v[i] - sum_Rx) / R[i, i]
+            x_est[i] = (v_tilde[i] - sum_Rx) / R[i, i]
         
         return x_est
 
     def NML_X(self,chann,Y):
-        conste = self.data.Qsym.QAM_N_arr_tensor
-        index  = np.arange(48)
-        x_nml = torch.zeros((self.batch_size,48),dtype=torch.complex128).to(self.device)
+        conste = self.data.Qsym.QAM_N_arr_tensor.cpu().numpy()[:, np.newaxis]
+        P      = np.arange(1, 49)[:, np.newaxis]
+        x_nml  = np.zeros((self.batch_size,48),dtype = np.complex128)
         
         for i in range(chann.shape[0]):
             H = torch.complex(chann[i,0,:, :],chann[i,1,:, :])
             
             if self.data.load == "DFT_spreading":
-                H = self.data.F_H_Tensor@H@self.data.F_Tensor
-            x_nml[i] = Near_ML(Y[i],H,conste,index)
-            
+                G    = (self.data.F_H_Tensor@H@self.data.F_Tensor)
+                Q, R = torch.linalg.qr(G)
+                v_tilde = torch.matmul(Q.conj().transpose(-2, -1), Y[i])
+                x_nml[i] = near_ml(v_tilde.cpu().numpy()[:, np.newaxis],
+                                   R.cpu().numpy(),
+                                   conste,
+                                   P)
+                
+            else:   
+                x_nml[i] = near_ml(Y[i].cpu().numpy()[:, np.newaxis],
+                                   H.cpu().numpy(),
+                                   conste,
+                                   P)
+             
             if self.data.load == "DFT_spreading":
-                x_nml[i] = self.data.F_Tensor@x_nml[i]
+                x_nml[i] = self.data.F@x_nml[i]
             
-        return x_nml
+        return torch.from_numpy(x_nml).to(self.device)
 
     def OSIC_Det(self,Y, H, conste, index):
         rows, cols = H.shape
