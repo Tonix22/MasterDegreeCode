@@ -73,8 +73,8 @@ def read_plot_pandas(BER_list,labels,title="",BER_BLER = 'BER'):
     plt.xlabel('SNR')
     plt.ylabel(BER_BLER)
     
-    plt.show()
-    #plt.savefig('{}/{}/Results_{}_{}.png'.format(PLOTS_PATH,BER_BLER,title,get_time_string()))
+    #plt.show()
+    plt.savefig('{}/Plots/Results_{}_{}.png'.format(Test_PAHT,BER_BLER,title,get_time_string()))
            
 
 def vector_to_pandas(name,BER,path=Test_PAHT):

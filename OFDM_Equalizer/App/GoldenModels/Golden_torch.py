@@ -72,7 +72,7 @@ if __name__ == '__main__':
     
     trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],enable_checkpointing=False)
     
-    modes   = ["NML"]
+    modes   = ["MSE","LMSE","OSIC"]
     methods = ["Complete","DFT_spreading"]
     
     for currentMode in modes:
