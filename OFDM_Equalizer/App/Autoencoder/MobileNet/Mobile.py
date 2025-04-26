@@ -23,10 +23,10 @@ from PlotChannel import plot_channel
 from Scatter_plot_results import ComparePlot
 
 #Hyperparameters
-BATCHSIZE     = 50
-NUM_EPOCHS    = 400
+BATCHSIZE     = 100
+NUM_EPOCHS    = 10
 LEARNING_RATE = 0.0001
-QAM        = 16
+QAM        = 4
 
 class PredesignedModel(nn.Module):
     def __init__(self, encoded_space_dim):
@@ -59,16 +59,54 @@ class PredesignedModel(nn.Module):
     def forward(self,data):
         z = self.model(data)
         return z
+    
+class PredesignedModelBiLSTM(nn.Module):
+    def __init__(self, encoded_space_dim, input_size=48, hidden_size=128, num_layers=2):
+        super(PredesignedModelBiLSTM, self).__init__()
+
+        self.bilstm = nn.LSTM(input_size=input_size,
+                              hidden_size=hidden_size,
+                              num_layers=num_layers,
+                              bidirectional=True,
+                              batch_first=True)
+
+        self.fc = nn.Linear(hidden_size * 2, encoded_space_dim)
+
+        # Force double precision
+        self.double()
+
+    def forward(self, data):
+        # Expecting input: [batch, 1, 48, 48] like MobileNet input (1 channel)
+        batch_size = data.size(0)
+        height = data.size(2)
+        width = data.size(3)
+
+        # Flatten the "image" into a sequence
+        # From [batch, 1, 48, 48] -> [batch, 48, 48]
+        data = data.squeeze(1)
+
+        # Now input each column (width) as feature vector
+        # So reshape [batch, 48, 48] -> [batch, 48, 48]
+        sequence = data
+
+        # Apply BiLSTM
+        lstm_out, _ = self.bilstm(sequence)  # [batch, seq_len, hidden_size*2]
+
+        # Last step
+        z = self.fc(lstm_out[:, -1, :])  # Only last output, [batch, encoded_space_dim]
+
+        return z
+
 
 class ZeroForcing(pl.LightningModule,Rx_loader):
     
     def __init__(self, encoded_space_dim):
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete") #Rx_loader constructor
+        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete",torch.device("cuda")) #Rx_loader constructor
         # Loss
         self.loss_f    = nn.MSELoss()
-        self.abs_net   = PredesignedModel(encoded_space_dim)
-        self.angle_net = PredesignedModel(encoded_space_dim)
+        self.abs_net   = PredesignedModelBiLSTM(encoded_space_dim)
+        self.angle_net = PredesignedModelBiLSTM(encoded_space_dim)
         
         self.final_merge_abs = nn.Sequential(
             nn.Linear(encoded_space_dim*3,int(encoded_space_dim*2)),
@@ -101,7 +139,9 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         #chann preparation
         chann = chann.permute(0,3,1,2)
         # ------------ Generate Y ------------
-        self.SNR_db = self.SNR_db if predict else 30
+        if(predict == False):
+            self.SNR_db = 45
+            
         Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
         # Normalize Y
         #Y     = Y/torch.max(torch.abs(Y),dim=1, keepdim=True)[0]
@@ -209,8 +249,8 @@ class ZeroForcing(pl.LightningModule,Rx_loader):
         
 if __name__ == '__main__':
    
-    trainer = Trainer(accelerator='cpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS,
-                resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/models/version_77/checkpoints/epoch=399-step=96000.ckpt')
+    trainer = Trainer(accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=10)],auto_lr_find=False, max_epochs=NUM_EPOCHS)
+                #resume_from_checkpoint='/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/App/Autoencoder/MobileNet/models/version_77/checkpoints/epoch=399-step=96000.ckpt')
     model   = ZeroForcing(48)
     trainer.fit(model)
     formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"ZeroForceMobileNet",get_date_string())

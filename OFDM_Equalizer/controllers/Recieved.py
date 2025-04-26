@@ -125,7 +125,7 @@ class Rx_loader():
         train_set, val_set, test_set = random_split(self.data, [train_size, val_size, test_size])
         self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True,num_workers=16)
         self.val_loader   = DataLoader(val_set,   batch_size=batch_size, shuffle=False,num_workers=16)
-        self.test_loader  = DataLoader(test_set,  batch_size=batch_size, shuffle=False,num_workers=16)
+        self.test_loader  = DataLoader(self.data,  batch_size=batch_size, shuffle=False,num_workers=16)
         self.test_set     = test_set
         self.batch_size   = batch_size
         #Telecom stuff
@@ -377,7 +377,10 @@ class Rx_loader():
         return diagonal_tensor
     
     def ZERO_X(self,chann,Y):
-        x_hat = Y/self.Chann_diag(chann) #ZERO FORCING equalizer
+        real_part = torch.diagonal(chann[:, 0, :, :], dim1=-2, dim2=-1)  # Shape: [100, 48]
+        imag_part = torch.diagonal(chann[:, 1, :, :], dim1=-2, dim2=-1)  # Shape: [100, 48]
+        complex_diagonal = torch.complex(real_part, imag_part)  # Shape: [100, 48]
+        x_hat = Y/complex_diagonal #ZERO FORCING equalizer
         return x_hat
     
         #90% Confidence level
