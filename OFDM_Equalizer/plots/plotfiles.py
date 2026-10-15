@@ -18,35 +18,41 @@ def plot_files(labels,Btype,Title,QAM=16):
             paths.append(Net_plot(Btype,n))
             
     read_plot_pandas(paths,labels,Title,BER_BLER=Btype)
+    
+def get_last_document(folder_path):
+    # List all files in the folder
+    files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+    
+    if not files:
+        return None  # Return None if the folder is empty or contains no files
+
+    # Find the file with the latest modification time
+    latest_file = max(files, key=os.path.getmtime)
+    return latest_file
+
+labels = ["LMMSE","MSE","NML","OSIC","GridNet","ComNet","PhaseNet"]
+
+mode ="BER"
+constelation = "4QAM"
+BasePath = f'/home/tonixscarlet/Documents/MasterDegreeCode/OFDM_Equalizer/Test/Golden/{constelation}/'
 
 
-#labels = ["LMMSE","OSIC","NML","PolarNet","ComplexNet","MobileNet","GridNet Square","GridNet Polar"]
-labels   = [#"NML",
-            #"NML+QR+DFT",
-            #"OSIC",
-            #"OSIC+QR+DFT"
-            #"LMSE",
-            #"LSME+DFT",
-            "MSE",
-            "MSE+DFT"
-            ]
+LMSEPath = BasePath+f"LMSE/{mode}/2024/dic/10/"
+MSEPath  = BasePath+f"MSE/{mode}/2024/dic/10/"
+NMLPath  = BasePath+f"NML/{mode}/2025/ene/8/"
+OSICPath = BasePath+f"OSIC/{mode}/2024/dic/10/"
 
-BasePath = '/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/Test/Golden/16QAM/'
-
-NMLPath  = BasePath+"NML/BER/2024/jun/16/"
-OSICPath = BasePath+"OSIC/BER/2024/jun/18/"
-
-LMSEPath = BasePath+"LMSE/BER/2024/jun/18/"
-MSEPath  = BasePath+"MSE/BER/2024/jun/18/"
-
-paths = [ #NMLPath+'Complete_2151.csv',
-          #NMLPath+'DFT_spreading_2338.csv',
-          #OSICPath+'Complete_0940.csv',
-          #OSICPath+'DFT_spreading_0958.csv',
-          #LMSEPath+'Complete_0908.csv',
-          #LMSEPath+'DFT_spreading_0922.csv',
-          MSEPath+'Complete_0842.csv',
-          MSEPath+'DFT_spreading_0855.csv'
+paths = [ get_last_document(LMSEPath),
+          get_last_document(MSEPath),
+          get_last_document(NMLPath),
+          get_last_document(OSICPath),
+          f'/home/tonixscarlet/Documents/MasterDegreeCode/OFDM_Equalizer/Test/Golden/4QAM/GridNet/{mode}/2026/Mar/17/Complete_1841.csv',
+          f"/home/tonixscarlet/Documents/MasterDegreeCode/OFDM_Equalizer/Test/Golden/4QAM/ZeroForcing/{mode}/2025/May/Complete_0956.csv",
+          f"/home/tonixscarlet/Documents/MasterDegreeCode/OFDM_Equalizer/Test/Golden/4QAM/PhaseNet/{mode}/2024/dic/10/Complete_1826.csv"  
         ]
 
-read_plot_pandas(paths,labels,"MSE",BER_BLER="BER")
+#print("Paths:")
+#for path in paths:
+#    print(path)
+
+read_plot_pandas(paths,labels,"GridNet",BER_BLER=mode)

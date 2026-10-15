@@ -1,26 +1,22 @@
 clc;
 clear all;
 close all;
-
+addpath('/home/tonix/Documents/MasterDegreeCode/OFDM_Equalizer/Matlab/PuertoLib');
 
 %% parameter 
 
-M = 4; % QAM modulation order
-CP = 0;
-FFTSize = 48;
+% QAM modulation order
+M = 4; 
+fftSize = 48;
 
-numSymPerFrame = 1;
 k = log2(M);
-
 constellation = qammod(0:M-1,M,"gray");    
 
 %% channel V2V
+channel = load('/home/tonix/Documents/MasterDegreeCode/Data/v2v80211p_LOS.mat');
 
-%load('v2v80211p_LOS.mat')
-load('v2v80211p_NLOS.mat')
-
- H = vectReal32b;
- channelCont=1;
+H = channel.data.vectReal32b;
+channelCont=1;
 %% system model 
 
 SNR = 0:5:25; % Range of SNR values, in dB.
@@ -28,84 +24,57 @@ EffEsp=(log2(M)*(48)/(64));
 
 for n= 1:length(SNR)
     
-    
     % Reset the error and bit counters
     numErrs = 0;
     numBits = 0;
 
-
     while numErrs < 1e3 && numBits < 1e6
+
         % Generate binary data and convert to symbols
-        tx = randi([0 1],FFTSize*log2(M),1);
+        tx = randi([0 1],fftSize*log2(M),1);
        
         % QAM modulate using 'Gray' symbol mapping
-         qpskSig = qammod(tx,M,"gray","InputType","bit","UnitAveragePower",true);
+        qpskSig = qammod(tx,M,"gray","InputType","bit","UnitAveragePower",true);
          
-         % pass throuht v2v channel
-      %   [ H, G ] = MultipathFadingChannel(FFTSize,sampleRate, maxDopplerShift, delayVector, gainVector, KFactor, specDopplerShift );
-         G = H(:,:,channelCont);
-         channelCont = channelCont +1;
-         if channelCont == 10000
-             channelCont =1
-         end
+        % pass throuht v2v channel
+        %  [ H, G ] = MultipathFadingChannel(fftSize,sampleRate, maxDopplerShift, delayVector, gainVector, KFactor, specDopplerShift );
+        G = H(:,:,channelCont);
+        channelCont = channelCont +1;
+        if channelCont == 10000
+            channelCont = 1;
+        end
       
-         TxSig = qpskSig;
-         TxSig = fft(qpskSig,FFTSize); 
+        TxSig = qpskSig;
+        TxSig = fft(qpskSig,fftSize); 
          
-         
-      
         RxSignal = G*TxSig;
         
-        H1= ifft(G,FFTSize);
-        H1= fft(H1.');
-        H1=H1.';
-         %figure
-         %imagesc(mag2db(abs(H1)));
-         %colorbar
+        H1 = ifft(G,fftSize);
+        H1 = fft(H1.');
+        H1 = H1.';
+        %figure
+        %imagesc(mag2db(abs(H1)));
+        %colorbar
 
         RxSignal = awgn(RxSignal,SNR(n),"measured");
-
-        
-        rxSig=ifft(RxSignal,FFTSize);
-
-
- 
+        rxSig=ifft(RxSignal,fftSize);
         NoiseVar=10^(-SNR(n)/10);
-
         NoiseAmpl=sqrt(NoiseVar);
-       
-       nstd = sqrt( (1 /( 10^(SNR(n)/10 ) ) )/2 );
-       
-       
+        nstd = sqrt( (1 /( 10^(SNR(n)/10 ) ) )/2 );
+
        %% nolinear detection
-       
        %[Q R] = qr(G);
-       
        %yp = Q'*rxSig;
-       
-       
        [yp,R,orden] = MMSESortedQRC(H1,nstd,rxSig,48,0);
-       
        %[rxSig, nodos] = OSIC_Det(yp,R,constellation,orden);
-
-       rxSig  = QRM_Det4b(yp,R,constellation,orden,M);
+       rxSig  = QRM_Det4b(yp,R,constellation,orden);
        
-       
-   
- 
        %% LS
-       
        % rxSig=G\rxSig;
-
-       
        %% LMMSE
-       
-       %rxSig=inv((G'*G + NoiseVar*eye(FFTSize))) * G'*rxSig;
+       % rxSig=inv((G'*G + NoiseVar*eye(fftSize))) * G'*rxSig;
 
-        
-      %% Demulate
-   
-
+        %% Demulate
         rx = qamdemod(rxSig,M, 'OutputType', 'bit');  % Demodulate
         
         % Calculate the number of bit errors
@@ -113,13 +82,11 @@ for n= 1:length(SNR)
         
         % Increment the error and bit counters
         numErrs = numErrs + nErrors;
-        numBits = numBits + FFTSize*log2(M);
+        numBits = numBits + fftSize*log2(M);
         
     end
     
-    
     %scatterplot(RxSig)
-
     % Estimate the BER
     berEst(n) = numErrs/numBits
     

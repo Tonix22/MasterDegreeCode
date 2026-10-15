@@ -13,7 +13,7 @@ from Recieved import RX
 
 
 # ----------- Data Setup  ---------
-QAM         = 16
+QAM         = 4
 realization =  6063 # the argmax given out study in the dataset
 #BINS analysis
 step = 1/4
@@ -21,7 +21,7 @@ step = 1/4
 
 # ----------- Data Generation ---------
 #Get all samples
-rx        = RX(QAM,"Unit_Pow","Complete")
+rx        = RX(QAM,"Unit_Pow","Complete","cpu")
 bits      = rx.Qsym.bits[:,realization].squeeze()
 
 # Data multiplied by channel
@@ -53,8 +53,6 @@ def plot_scatter_values(ax,rx,vect,title):
     
     #fig, ax2 = plt.subplots()
     ax.scatter(real, imag,s=10, c=colors,marker='*')
-    for i, txt in enumerate(range(48)):
-        ax.text(real[i], imag[i],format(bits[i], '0{}b'.format(rx.bitsframe)),fontsize=10)
 
     ax.grid(True)
     ax.set_xticks(binsx)
@@ -70,13 +68,13 @@ def plot_scatter_values(ax,rx,vect,title):
 
 # Add labels to the x and y axes
 fig =  plt.subplots()
-ax1  = plt.subplot2grid((1, 3), (0, 0))
-ax2  = plt.subplot2grid((1, 3), (0, 1))
-ax3  = plt.subplot2grid((1, 3), (0, 2))
+ax1  = plt.subplot2grid((1, 2), (0, 0))
+ax2  = plt.subplot2grid((1, 2), (0, 1))
 
-plot_scatter_values(ax1,rx,data,"Y*H")
-plot_scatter_values(ax2,rx,hermitian,"H^H*Y")
-plot_scatter_values(ax3,rx,truth,"Truth")
 
-#plt.savefig('./result.png')
-plt.show()
+plot_scatter_values(ax1,rx,data,"Y*G")
+plot_scatter_values(ax2,rx,hermitian,"G^H*Y")
+
+
+plt.savefig('result.png')
+#plt.show()

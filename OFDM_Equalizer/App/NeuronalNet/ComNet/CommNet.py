@@ -24,16 +24,16 @@ import torch.optim.lr_scheduler as lr_scheduler
 #Hyperparameters
 BATCHSIZE  = 100
 QAM        = 4
-NUM_EPOCHS = 30
+NUM_EPOCHS = 10
 #NN parameters
 INPUT_SIZE  = 48
 HIDDEN_SIZE = 240 #48*1.5
 #Optimizer
-LEARNING_RATE = 1e-4 # 16 QAM 8e-5, 4QAM 4e-5
+LEARNING_RATE = 1e-3 # 16 QAM 8e-5, 4QAM 4e-5
 CONJ = True
 
 class BiLSTMDetection(nn.Module):
-    def __init__(self, input_size=2, hidden_size=64, num_layers=1):
+    def __init__(self, input_size=2, hidden_size=128, num_layers=2):
         super(BiLSTMDetection, self).__init__()
         self.bilstm = nn.LSTM(input_size=input_size,
                               hidden_size=hidden_size,
@@ -44,31 +44,23 @@ class BiLSTMDetection(nn.Module):
         self.fc = nn.Linear(hidden_size * 2, 2)  # Output: real + imag for each symbol
 
     def forward(self, x):
-        # x shape: [batch, N*2] where N is the number of complex symbols
         batch_size = x.size(0)
-        num_symbols = x.size(1) // 2  # infer number of complex symbols
-
-        # Reshape from [batch, N*2] to [batch, N, 2] where [:, :, 0] = real, [:, :, 1] = imag
-        x = x.view(batch_size, 2, num_symbols).transpose(1, 2)  # -> [batch, N, 2]
-
-        # BiLSTM expects input [batch, seq_len, input_size] = [batch, N, 2]
-        lstm_out, _ = self.bilstm(x)  # [batch, N, hidden*2]
-        output = self.fc(lstm_out)    # [batch, N, 2]
-
-        # Separate real and imag again
-        real = output[:, :, 0]  # [batch, N]
-        imag = output[:, :, 1]  # [batch, N]
-
-        return real, imag
+        num_symbols = x.size(1) // 2
+        x = x.view(batch_size, 2, num_symbols).transpose(1, 2)
+        lstm_out, _ = self.bilstm(x)
+        output = self.fc(lstm_out)
+        # Stack real over imag to shape [batch, num_symbols*2]
+        output_stacked = output.reshape(batch_size, -1)
+        return output_stacked
 
 class PhaseNet(pl.LightningModule,Rx_loader):
     def __init__(self, input_size, hidden_size):
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
+        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete",torch.device("cuda"))
         
         self.angle_net = BiLSTMDetection()
-        #self.loss_f    = nn.MSELoss()
-        self.loss_f = self.distanceLoss
+        self.loss_f    = nn.MSELoss()
+        #self.loss_f = self.distanceLoss
         
     def distanceLoss(self,real_target,imag_target,out_real,out_imag):
         return F.mse_loss(real_target,out_real)+F.mse_loss(imag_target,out_imag)
@@ -84,16 +76,14 @@ class PhaseNet(pl.LightningModule,Rx_loader):
     
     
     def common_step(self,batch,predict = False):
-        
-        #change different noises for different epoch
-        if(predict == False):
-            self.SNR_db = 40 - 5 * (self.current_epoch % 2)
+        self.SNR_db = 45
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         #chann preparation
         chann = chann.permute(0,3,1,2)
         #Multiply X by the channel
-        Y     = self.Get_Y(chann,x,conj=True,noise_activ=True)
+        Y     = self.Get_Y(chann,x,conj=False,noise_activ=True)
+        Y     = self.ZERO_X(chann,Y)
         
         #Filter batches that are not outliers, borring batches
         if(predict == False):
@@ -104,25 +94,35 @@ class PhaseNet(pl.LightningModule,Rx_loader):
         if valid_data.numel() != 0:
             #normalize angle
             Y = valid_data
-            X_zf = Y/chann 
+            # Separate real and imaginary parts
+            real_part = Y.real  # Shape: (batch, feature)
+            imag_part = Y.imag  # Shape: (batch, feature)
+
+            # Stack real and imaginary parts along the last dimension
+            X_zf_stacked = torch.cat((real_part, imag_part), dim=1).to(torch.float32)  # Shape: (batch, feature * 2)
 
             self.start_clock() #start time eval
-            #model eval
-            out_real, out_imag  = self(X_zf)
+            out_stacked = self(X_zf_stacked)  # [batch, 96]
+            target_real = x[valid_indices].real.float()
+            target_imag = x[valid_indices].imag.float()
+            target_stacked = torch.cat([target_real, target_imag], dim=1).to(torch.float32)  # [batch, 96]
 
-            #model End
-            self.stop_clock(int(Y.shape[0])) #end time eval
-            
-            loss = self.loss_f(x[valid_indices].real,x[valid_indices].imag,out_real,out_imag)
+            loss = self.loss_f(out_stacked, target_stacked)
+
     
-            #torch polar polar(abs: Tensor, angle: Tensor)
-            if(predict):
-                x_hat    = torch.complex(out_real,out_imag)
-                #ComparePlot(x,x_hat)
-                self.BER_cal(x_hat,x[valid_indices])
+        if predict:
+            # Separar de nuevo la predicción stackeada
+            out_real = out_stacked[:, :out_stacked.shape[1]//2]
+            out_imag = out_stacked[:, out_stacked.shape[1]//2:]
+            
+            # Formar complejos a partir de predicción
+            x_hat = torch.complex(out_real, out_imag)
+            
+            # Calcular BER comparando predicción vs ground truth
+            self.BER_cal(x_hat, x[valid_indices])
         
         else: # block back propagation
-            loss = torch.tensor([0.0],requires_grad=True).to(torch.float64).to(self.device)
+            loss = torch.rand(1, requires_grad=True, dtype=torch.float64, device=self.device)
         
         return loss
     

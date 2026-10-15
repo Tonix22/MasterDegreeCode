@@ -185,7 +185,7 @@ class Rx_loader():
             self.total_blocks = 0
             self.SNR_db       = n 
             
-            trainer.predict(self)
+            trainer.predict(self, dataloaders=self.test_loader, ckpt_path=None)
             
             self.BLER_list.append(self.BLER)
             self.BER_list.append(self.BER)
@@ -198,7 +198,7 @@ class Rx_loader():
             
             pathBER  = convert_to_path(path+"_BER_"+get_date_string())
             pathBLER = convert_to_path(path+"_BLER_"+get_date_string())
-            
+            print("{}_{}.csv".format(self.data.load,get_time_string()))
             vector_to_pandas("{}_{}.csv".format(self.data.load,get_time_string()),self.BER_list,  path = pathBER)
             vector_to_pandas("{}_{}.csv".format(self.data.load,get_time_string()),self.BLER_list, path = pathBLER)
         

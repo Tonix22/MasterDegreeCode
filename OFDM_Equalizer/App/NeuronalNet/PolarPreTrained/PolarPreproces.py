@@ -23,8 +23,8 @@ main_path = os.path.dirname(os.path.abspath(__file__))+"/../"
 sys.path.insert(0, main_path+"MagNet")
 sys.path.insert(0, main_path+"PhaseNet")
 
-from MagNet import MagEqualizer
-from PhaseNet import PhaseEqualizer
+#from MagNet import MagEqualizer
+#from PhaseNet import PhaseEqualizer
 
 #Hyperparameters
 BATCHSIZE  = 10

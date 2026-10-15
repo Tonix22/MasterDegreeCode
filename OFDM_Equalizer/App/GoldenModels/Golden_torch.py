@@ -22,9 +22,9 @@ from utils import get_date_string, convert_to_path
 
 #Hyperparameters
 BATCHSIZE  = 10
-QAM        = 16
-ESTIM      = "OSIC"
-METHOD     = "DFT_spreading" # Complete DFT_spreading
+QAM        = 4
+ESTIM      = "NML"
+METHOD     = "Complete" # Complete DFT_spreading
 
 class Golden(pl.LightningModule,Rx_loader):
     def __init__(self,mode="MSE",method = METHOD,qam = QAM,batchSize = BATCHSIZE):
@@ -72,8 +72,8 @@ if __name__ == '__main__':
     
     trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],enable_checkpointing=False)
     
-    modes   = ["MSE","LMSE","OSIC"]
-    methods = ["Complete","DFT_spreading"]
+    modes   = ["NML"]
+    methods = ["Complete"]
     
     for currentMode in modes:
         for currenMehod in methods:

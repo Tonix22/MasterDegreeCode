@@ -124,16 +124,16 @@ class PolarGridCode():
         ax.set_xlabel('Angle')
         ax.set_ylabel('Radius')
 
-"""
+
 # Define the step sizes for binning
 step_radius = 0.25
 step_angle = np.pi/6
 
 # Create an instance of the PolarGridCode class
 coding = PolarGridCode(step_radius, step_angle)
-#fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-#coding.plot_grid_values(ax)
-#plt.show()
+fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+coding.plot_grid_values(ax)
+plt.savefig('PolarGridCode.png')
 
 
 # Generate some random complex data
@@ -149,11 +149,11 @@ data = torch.from_numpy(data)
 # Plot the original data in the polar coordinate system
 fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
 coding.plot_scatter_values(ax, data, "Original Data")
+plt.savefig('OriginalData.png')
+
 
 # Plot the decoded data in the polar coordinate system
 fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
 coding.plot_scatter_values(ax, decoded, "Decoded Data")
 
-plt.show()
-#plt.savefig('RadGridTest.png')
-"""
+plt.savefig('DecodedData.png')

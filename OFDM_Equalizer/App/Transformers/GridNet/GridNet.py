@@ -22,7 +22,7 @@ from RadGrid import PolarGridCode
 
 PreprocessPath = os.path.dirname(os.path.abspath(__file__))+"/../../"
 sys.path.insert(0, PreprocessPath+"NeuronalNet/PolarPreTrained")
-from PolarPreproces import PolarPreprocess
+#from PolarPreproces import PolarPreprocess
 
 #
 LAST_LIST   = 250
@@ -39,17 +39,17 @@ LEARNING_RATE = .0001
 
 # Model hyperparameters
 GRID_STEP = 1/7
-#GRID = "Polar"
-GRID = "Square"
+GRID = "Polar"
+#GRID = "Square"
 STEP_RADIUS = 0.25
 STEP_ANGLE  = np.pi/6
 
 
 #Hyperparameters
-BATCHSIZE  = 100
-QAM        = 16
-NUM_EPOCHS = 14 if GRID == "Square" else 6 #50,100,150
-SNR        = 30
+BATCHSIZE  = 400
+QAM        = 4
+NUM_EPOCHS = 100
+SNR        = 20
 
 
 embedding_size = 512
@@ -75,8 +75,8 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         max_len):
         
         pl.LightningModule.__init__(self)
-        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete")
         self.mydevice = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        Rx_loader.__init__(self,BATCHSIZE,QAM,"Complete",self.mydevice)
         # ------------ Grid config ------------
         self.vocab_size = None
         if(GRID == "Square"):
@@ -129,6 +129,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         self.fc_out      = nn.Linear(embedding_size, self.vocab_size)
         self.dropout     = nn.Dropout(dropout)
         self.src_pad_idx = src_pad_idx
+        self.val_step_outputs = []
 
     def make_src_mask(self, src):
         src_mask = src.transpose(0, 1) == self.src_pad_idx
@@ -220,7 +221,7 @@ class GridTransformer(pl.LightningModule,Rx_loader):
             else:
               self.SNR_db = 45  - 5 * (i % 4)
             #self.SNR_db = 20
-        
+        #172.22.142.173
         # training_step defines the train loop. It is independent of forward
         chann, x = batch
         # Chann Formating
@@ -271,73 +272,63 @@ class GridTransformer(pl.LightningModule,Rx_loader):
         self.log("train_loss", loss) #tensorboard logs
         return {'loss':loss}
     
+    def on_validation_epoch_start(self):
+        self.val_step_outputs = []
+
     def validation_step(self, batch, batch_idx):
         loss = self.common_step(batch)
-        self.log('val_loss', loss) #tensorboard logs
-        return {'val_loss':loss}
+        self.log("val_loss", loss, prog_bar=False, on_step=False, on_epoch=False)
+        self.val_step_outputs.append(loss.detach())
+        return loss
+
+    def on_validation_epoch_end(self):
+        if len(self.val_step_outputs) > 0:
+            avg_loss = torch.stack(self.val_step_outputs).mean()
+            self.log("avg_val_loss", avg_loss, prog_bar=True)
+        self.val_step_outputs.clear()
     
-    def validation_epoch_end(self, outputs):
-        # Concatenate the tensors in outputs
-        losses = [x['val_loss'] for x in outputs]
-        concatenated = torch.cat([l.view(-1) for l in losses])
-        # Compute the average loss
-        avg_loss = concatenated.mean()
-        self.log("avg_val_loss", avg_loss) #tensorboard logs
-        return {'val_loss':avg_loss}
-    
-    def predict_step(self, batch, batch_idx):
-        #Filter batches that are not outliers, borring batches
-        if(batch_idx < 10 ):
-            # training_step defines the train loop. It is independent of forward
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        if batch_idx < 15:
             chann, x = batch
-            # Chann Formating
-            chann = chann.permute(0,3,1,2)
-                    # Prepare GridTransformer
-            Y  = self.Get_Y(chann,x,conj=True,noise_activ=True)
-            #Y  = self.ZERO_X(chann,Y)
-            
-            valid_data, valid_indices   = self.filter_z_score(Y)
+            chann = chann.permute(0, 3, 1, 2)
+
+            Y = self.Get_Y(chann, x, conj=True, noise_activ=True)
+            valid_data, valid_indices = self.filter_z_score(Y)
+
             if valid_data.numel() != 0:
-                # Prepare GridTransformer
                 Y = valid_data
                 x = x[valid_indices]
+
                 if valid_data.dim() == 1:
                     Y = torch.unsqueeze(Y, 0)
-                    x = torch.unsqueeze(x,0)
-                
-                self.start_clock() #start time eval ***************
-                
-                # Transform src values to grid tokens 
-                src_tokens = self.grid_token(Y,indices=valid_indices).permute(1,0)  # [length,batch]
-                #Get target tokens
-                tgt_tokens = self.grid_token(x,indices=valid_indices).permute(1,0) # [length,batch]
-                            
-                x_hat = torch.zeros(x.shape,dtype=torch.int64).to(self.device)
-                idxs  = len(valid_indices) if(valid_indices.dim() != 0) else 1
-                for batch_i in range(0,idxs):
-                    outputs = [2]#"<sos>"
-                    sentence_tensor = src_tokens[:,batch_i].unsqueeze(1)
-                    for symbol in range(0,48):
+                    x = torch.unsqueeze(x, 0)
+
+                self.start_clock()
+
+                src_tokens = self.grid_token(Y, indices=valid_indices).permute(1, 0)
+                tgt_tokens = self.grid_token(x, indices=valid_indices).permute(1, 0)
+
+                x_hat = torch.zeros(x.shape, dtype=torch.int64).to(self.device)
+                idxs = len(valid_indices) if valid_indices.dim() != 0 else 1
+
+                for batch_i in range(0, idxs):
+                    outputs = [2]
+                    sentence_tensor = src_tokens[:, batch_i].unsqueeze(1)
+
+                    for symbol in range(0, 48):
                         trg_tensor = torch.LongTensor(outputs).unsqueeze(1).to(self.device)
-                        output     = self(sentence_tensor, trg_tensor)
+                        output = self(sentence_tensor, trg_tensor)
                         best_guess = output.argmax(2)[-1, :].item()
                         outputs.append(best_guess)
-                        # Concatenate previous input with predicted best word
-                    x_hat[batch_i] = torch.Tensor(outputs[1:]).to(torch.int64).to(self.device)
-            
-                #Get target tokens
-                #degrid bits
-                
+
+                    x_hat[batch_i] = torch.tensor(outputs[1:], dtype=torch.int64).to(self.device)
+
                 x_hat = self.grid_decode(x_hat)
-                
-                self.stop_clock(int(Y.shape[0])) #Stop time eval ***************
-                
-                #x_hat = self.ZERO_X(chann,x_hat) # zero forcing after clean up
-                x     = self.grid_decode(tgt_tokens[1:-1].permute(1,0))
-                
-                
-                self.BER_cal(x_hat,x,norm=True) 
-                
+                self.stop_clock(int(Y.shape[0]))
+                x = self.grid_decode(tgt_tokens[1:-1].permute(1, 0))
+
+                self.BER_cal(x_hat, x, norm=True)
+
         return 0 
     
     def train_dataloader(self):
@@ -349,25 +340,36 @@ class GridTransformer(pl.LightningModule,Rx_loader):
     def predict_dataloader(self):
         return self.test_loader
     
-if __name__ == '__main__':
-    
-    trainer = Trainer(fast_dev_run=False,accelerator='gpu',callbacks=[TQDMProgressBar(refresh_rate=2)],auto_lr_find=True, max_epochs=NUM_EPOCHS)
-                #resume_from_checkpoint='/content/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_2/checkpoints/epoch=32-step=3960.ckpt')
-    tf = GridTransformer(
-    embedding_size,
-    src_pad_idx,
-    num_heads,
-    num_encoder_layers,
-    num_decoder_layers,
-    forward_expansion,
-    dropout,
-    max_len)
-    
-    trainer.fit(tf)
-    
-    #name of output log file 
-    formating = "Test_(Golden_{}QAM_{})_{}".format(QAM,"GridTransformer",get_date_string())
-    tf.SNR_BER_TEST(trainer,formating)
-    
+if __name__ == "__main__":
+
+    ckpt_path = "/home/tonixscarlet/Documents/MasterDegreeCode/OFDM_Equalizer/App/Transformers/GridNet/lightning_logs/version_5/checkpoints/epoch=99-step=3000.ckpt"
+
+    tf = GridTransformer.load_from_checkpoint(
+        ckpt_path,
+        embedding_size=embedding_size,
+        src_pad_idx=src_pad_idx,
+        num_heads=num_heads,
+        num_encoder_layers=num_encoder_layers,
+        num_decoder_layers=num_decoder_layers,
+        forward_expansion=forward_expansion,
+        dropout=dropout,
+        max_len=max_len,
+    )
+
+    print("CUDA available:", torch.cuda.is_available())
+    if torch.cuda.is_available():
+        print("GPU:", torch.cuda.get_device_name(0))
+
+    trainer = Trainer(
+        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        devices=1,
+        callbacks=[TQDMProgressBar(refresh_rate=2)],
+    )
+
+    formating = "Test_(Golden_{}QAM_{})_{}".format(
+        QAM, "GridTransformer", get_date_string()
+    )
+
+    tf.SNR_BER_TEST(trainer, formating)
 
     

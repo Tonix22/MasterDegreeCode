@@ -41,39 +41,39 @@ def read_plot_pandas(BER_list,labels,title="",BER_BLER = 'BER'):
     index = 0
     width = 2 if len(BER_list) <= 3 else 1
     for BER_it in BER_list:
+        print("Reading file: ", BER_it)
         df  = pd.read_csv(BER_it)
         BER = df.iloc[:, 1].to_numpy()
-        f = interp1d(indexValues, BER, kind='linear')
         indexValues_interp = np.linspace(GOLDEN_WORST_SNR, GOLDEN_BEST_SNR, 21)
-        BER_interp = f(indexValues_interp)
+        #plt.gca().set_xticks(indexValues_interp[::2])
         plt.grid(True, which="both")
-        plt.semilogy(indexValues_interp, BER, label=labels[index],linewidth=width)
-        if(index > 2):
-            # Add dashed line
-            plt.gca().get_lines()[-1].set_linestyle("--")
-            # Add star marker
-            if(index == 3):
-                plt.gca().get_lines()[-1].set_marker("v")
-            elif(index == 4):
-                plt.gca().get_lines()[-1].set_marker("h")
-            elif(index == 5):
-                plt.gca().get_lines()[-1].set_marker("+")
-            elif(index == 6):
-                plt.gca().get_lines()[-1].set_marker("s")
-            else:
-                plt.gca().get_lines()[-1].set_marker("*")
-            
-            plt.gca().get_lines()[-1].set_markersize(4)
-            plt.gca().get_lines()[-1].set_markevery(10)  # set marker every 10th data point
+        plt.semilogy(indexValues_interp[:-5], BER[:-5], label=labels[index],linewidth=width)
+        
+        # Add star marker
+        if(index == 1):
+            plt.gca().get_lines()[-1].set_marker("v")
+        elif(index == 2):
+            plt.gca().get_lines()[-1].set_marker("h")
+        elif(index == 3):
+            plt.gca().get_lines()[-1].set_marker("+")
+        elif(index == 4):
+            plt.gca().get_lines()[-1].set_marker("s")
+        else:
+            plt.gca().get_lines()[-1].set_marker("*")
+        
+        plt.gca().get_lines()[-1].set_markersize(5)
+        plt.gca().get_lines()[-1].set_markevery(1)  # set marker every 10th data point
         
         index += 1
 
     plt.legend()
-    plt.title('SNR and {} '.format(BER_BLER)+title)
+    #plt.title('SNR and {} '.format(BER_BLER)+title)
     plt.xlabel('SNR')
     plt.ylabel(BER_BLER)
     
     #plt.show()
+    #print('{}/Plots/Results_{}_{}.png'.format(Test_PAHT,BER_BLER,title,get_time_string()))
+    print('{}/Plots/Results_{}_{}.png'.format(Test_PAHT,BER_BLER,title,get_time_string()))
     plt.savefig('{}/Plots/Results_{}_{}.png'.format(Test_PAHT,BER_BLER,title,get_time_string()))
            
 
